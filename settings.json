@@ -1,0 +1,58 @@
+[
+	{
+		"uniqueID": "showOnlyInGame",
+		"type": "checkbox",
+		"title": "Only Show In Game / 只在游戏中显示",
+		"description": "Hide the counter during song select, menus and results. Turn off to always display it. / 选歌/菜单/结算时隐藏；关闭后任何界面都显示。",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "showInSongSelect",
+		"type": "checkbox",
+		"title": "Show In Song Select / 选歌界面显示",
+		"description": "When Only Show In Game is on, also show the whole-map difficulty in song select. / 开启时选歌界面显示整图难度。",
+		"options": [],
+		"value": true
+	},
+	{
+		"uniqueID": "showTierMark",
+		"type": "checkbox",
+		"title": "Show Tier Mark / 显示分档角标",
+		"description": "Show the -- / - / + / ++ mark at the top-right of the badge. The badge image itself already changes with the sub-tier; turn this on if you want the mark as well. / 在徽章右上角额外显示 -- / - / + / ++ 角标。徽章图本身已随分档变化，需要额外的文字提示时再打开。",
+		"options": [],
+		"value": false
+	},
+	{
+		"uniqueID": "hAlgorithm",
+		"type": "header",
+		"title": "Estimator Algorithm / 整图算法",
+		"description": "每个键数各自选择，互不影响。「当前这段」固定用 Sunny。",
+		"options": [],
+		"value": ""
+	},
+	{
+		"uniqueID": "algorithm4K",
+		"type": "options",
+		"title": "4K Algorithm / 4K 算法",
+		"description": "4K 整图段位用哪个算法。Mixed 与 ManiaMapAnalyser 卡片一致。",
+		"options": ["Mixed", "Azusa", "Roxy", "Sunny", "Daniel", "Companella"],
+		"value": "Mixed"
+	},
+	{
+		"uniqueID": "algorithm6K",
+		"type": "options",
+		"title": "6K Algorithm / 6K 算法",
+		"description": "6K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
+		"options": ["Mixed", "Sunny", "Daniel"],
+		"value": "Mixed"
+	},
+	{
+		"uniqueID": "algorithm7K",
+		"type": "options",
+		"title": "7K Algorithm / 7K 算法",
+		"description": "7K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
+		"options": ["Mixed", "Sunny", "Daniel"],
+		"value": "Mixed"
+	}
+]

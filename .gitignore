@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+package-lock.json
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# 日志与临时文件
+*.log
+__shot.html
+
+# 本地调试产物
+shots/
+cover/

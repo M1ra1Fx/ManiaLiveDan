@@ -1,0 +1,9 @@
+# 统一用 LF，避免 Windows 上提交后每行都变 CRLF
+* text=auto eol=lf
+
+# 二进制资源不做换行转换
+*.png binary
+*.webp binary
+*.wasm binary
+*.onnx binary
+*.ico binary

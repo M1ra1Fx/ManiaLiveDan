@@ -1,0 +1,659 @@
+:root {
+    /* 不要 color-scheme: dark —— 它会把透明页面画成黑底，圆角/边距外就是一圈黑框 */
+    --glass: rgba(18, 22, 38, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --text-primary: #f5f7ff;
+    --text-soft: #a9b1d2;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+body {
+    /* 光晕要留出地方，否则会被窗口边缘切掉（用户：「难度太高光晕太强，会被窗口边缘切掉」）。
+       最外层 halo 的外扩 ≈ 半宽 + 1.5×blur：
+           glowWidth 最大 5.4px × glowHaloScale 3.4 ÷ 2 = 9.2px
+           blur 10px 的可见外扩 ≈ 1.5 × 10 = 15px
+           合计 ≈ 24.2px
+       所以这里留 30px。**改 padding 必须同步改 halo 的 blur**，否则不是被切就是留白太多。 */
+    padding: 30px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    font-family: "Segoe UI", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+}
+
+/* 不锁定长宽比：卡片铺满窗口，内容用相对尺寸自适应 */
+.stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: opacity 180ms ease;
+}
+
+/* 只在游戏进行中显示；选歌/结算/菜单时整体隐藏 */
+body:not(.in-game) .stage {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* 沿边框周长匀速旋转的灯带：SVG stroke-dashoffset（不是 conic 角度） */
+/* 沿边框周长匀速旋转：stroke-dashoffset 由 JS 逐帧驱动，兼容不支持 @property 的环境 */
+
+.card-glow {
+    --glow-1: #3a4d7a;
+    --glow-2: #5c6fa8;
+    --glow-3: #8aa2d8;
+    --glow-4: #5568a0;
+    --glow-5: #3a4d7a;
+    --glow-6: #5c6fa8;
+    --glow-7: #8aa2d8;
+    --glow-8: #5568a0;
+    --glow-speed: 8s;
+    --glow-core-sat: 1.2;
+    --glow-tight-sat: 1.5;
+    --glow-halo-sat: 1.35;
+    --glow-core-dim: 1.4;
+    --glow-core-peak: 1.4;
+    --glow-tight-dim: 0.5;
+    --glow-tight-peak: 0.5;
+    --glow-halo-dim: 0.2;
+    --glow-halo-peak: 0.2;
+    --glow-pulse-speed: 3s;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    opacity: 0;
+    z-index: 2;
+    pointer-events: none;
+    will-change: opacity;
+    transition: opacity 650ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 霓虹灯管：三层叠出来，不是一团雾
+   glow-core   灯芯（细、几乎不糊、随难度白热；饱和度不降，颜色才不被冲掉）
+   glow-tight  玻璃管壁（饱和的彩色紧光，紧贴灯芯）
+   glow-halo   环境泛光（很宽很淡，只负责把颜色洒到卡外）
+
+   滤镜/不透明度都挂在 <g> 上而不是单条 path 上：
+   一条 path 的 filter 区域只有它自己的 bbox（+10%），13px 的模糊会被裁掉；
+   <g> 的 bbox 是整圈环，模糊区域足够，而且 10 条弧只跑一次滤镜。 */
+.card-glow .glow-core {
+    fill: none;
+    stroke-width: var(--glow-width, 6px);
+    stroke-linecap: round;
+}
+
+.card-glow .glow-tight {
+    fill: none;
+    stroke-width: var(--glow-tight-width, 16px);
+    stroke-linecap: round;
+}
+
+.card-glow .glow-halo {
+    fill: none;
+    stroke-width: var(--glow-halo-width, 26px);
+    stroke-linecap: round;
+}
+
+.card-glow .glow-core-group {
+    filter: blur(0.5px) saturate(var(--glow-core-sat, 1.2)) brightness(var(--glow-core-dim, 1.4));
+    animation: glowCoreBreath var(--glow-pulse-speed, 3s) ease-in-out infinite alternate;
+}
+
+.card-glow .glow-tight-group {
+    opacity: var(--glow-tight-dim, 0.5);
+    filter: blur(4px) saturate(var(--glow-tight-sat, 1.5));
+    animation: glowTightBreath var(--glow-pulse-speed, 3s) ease-in-out infinite alternate;
+}
+
+.card-glow .glow-halo-group {
+    opacity: var(--glow-halo-dim, 0.2);
+    filter: blur(10px) saturate(var(--glow-halo-sat, 1.35));
+    animation: glowHaloBreath var(--glow-pulse-speed, 3s) ease-in-out infinite alternate;
+}
+
+/* 从 Delta / LN13 往上开始明暗呼吸。
+   暗端钉在 Gamma / LN12 的水位上（用户要求：暗的那口气不能比 Gamma 更暗），
+   亮端和节奏随难度拉开 —— 越难，管壁涨得越高、闪得越快。 */
+@keyframes glowCoreBreath {
+    from {
+        filter: blur(0.5px) saturate(var(--glow-core-sat, 1.2)) brightness(var(--glow-core-dim, 1.4));
+    }
+    to {
+        filter: blur(0.5px) saturate(var(--glow-core-sat, 1.2)) brightness(var(--glow-core-peak, 1.4));
+    }
+}
+
+@keyframes glowTightBreath {
+    from { opacity: var(--glow-tight-dim, 0.5); }
+    to { opacity: var(--glow-tight-peak, 0.5); }
+}
+
+@keyframes glowHaloBreath {
+    from { opacity: var(--glow-halo-dim, 0.2); }
+    to { opacity: var(--glow-halo-peak, 0.2); }
+}
+
+/* 呼吸动画不再跟随系统的“减少动画”设置：
+   之前 WebView2 继承 prefers-reduced-motion，会把 Delta/LN13+ 的明暗呼吸整段关掉，
+   但用户明确要这个闪烁效果。旋转本身由 JS 驱动，不受这里影响。 */
+
+.card {
+    --accent: #6d7894;
+    --ln-color: #ff9d5c;
+    --fs: clamp(11px, min(6.2vh, 2.2vw), 14px);
+    --line-h: clamp(34px, min(32vh, 11vw), 100px);
+    --glyph-h: clamp(44px, min(41vh, 14vw), 120px);
+    --prefix-fs: clamp(14px, min(10vh, 3.3vw), 22px);
+    /* +/- 后缀要跟着字形缩放：原来固定 clamp(12..24px)，在大字下小得几乎看不见 */
+    --tier-fs: calc(var(--glyph-h) * 0.40);
+    --glow-a: rgba(255, 255, 255, 0.07);
+    --glow-b: rgba(255, 255, 255, 0.03);
+    --glow-c: rgba(255, 255, 255, 0.02);
+    --glow-bloom: 1;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: clamp(5px, 2vh, 12px) clamp(8px, 2vw, 18px);
+    border-radius: 14px;
+    background: linear-gradient(160deg, rgba(48, 60, 96, 0.74) 0%, rgba(16, 22, 38, 0.86) 100%);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    /* 边框**不能**跟着段位色走：环上的灯管是多色的、还在转，
+       一条单色的内圈永远和它对不上（用户原话「内圈和光晕对不上」）。
+       这里固定成中性白，平时几乎看不见，只在没有灯管时兜个底。 */
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    /* 同理，card 上原来的 box-shadow 光晕是单色的、不会转，
+       和灯管叠在一起就是第二圈对不上的光，已删。只留一个中性投影。 */
+    box-shadow: 0 2px 18px rgba(0, 0, 0, 0.34);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2px;
+    overflow: hidden;
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .card {
+        animation: none;
+    }
+}
+
+.card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.head {
+    gap: clamp(3px, 0.9vw, 8px);
+    font-size: var(--fs);
+    color: rgba(232, 240, 255, 0.55);
+    letter-spacing: 0.02em;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff5c7a;
+    flex: none;
+}
+
+.dot.on {
+    background: #5ce6a1;
+    box-shadow: 0 0 8px rgba(92, 230, 161, 0.9);
+}
+
+.status {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: none;
+}
+
+.status[data-tone="error"] {
+    color: #ff8fa3;
+}
+
+.status[data-tone="loading"] {
+    color: #ffd479;
+}
+
+.status[data-tone="ok"] {
+    color: rgba(232, 240, 255, 0.62);
+}
+
+.caption {
+    font-size: 0.9em;
+    letter-spacing: 0.14em;
+    color: rgba(232, 240, 255, 0.4);
+    flex: none;
+}
+
+.caption::before {
+    content: "·";
+    margin-right: 6px;
+    color: rgba(232, 240, 255, 0.25);
+}
+
+.spacer {
+    flex: 1;
+}
+
+.sub {
+    font-size: 0.9em;
+    color: rgba(232, 240, 255, 0.34);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 0 9em;
+    text-align: right;
+}
+
+.star-tag {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 1px;
+    /* 固定宽度：星数变化（2.90 / 10.23）时徽章不左右抖，也不挤动右侧标签 */
+    width: 3.9em;
+    font-size: 1.1em;
+    font-weight: 800;
+    color: #ffffff;
+    font-variant-numeric: tabular-nums;
+    padding: 0.15em 0.55em;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.star-tag em {
+    font-style: normal;
+    font-size: 9px;
+    color: rgba(232, 240, 255, 0.5);
+}
+
+.tag {
+    flex: none;
+    font-size: 1em;
+    padding: 0.15em 0.55em;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #cfd9ef;
+}
+
+.tag-mods {
+    color: #ffd479;
+    background: rgba(255, 212, 121, 0.1);
+}
+
+.tag-algo {
+    color: #9ad7ff;
+    background: rgba(154, 215, 255, 0.1);
+}
+
+/* 当前段位算法：Mixed 用亮蓝（与整图行一致），Sunny 压暗表示「本段口径」 */
+.tag-algo[data-tone="mma"] {
+    color: #9ad7ff;
+    background: rgba(154, 215, 255, 0.1);
+}
+
+.tag-algo[data-tone="sunny"] {
+    color: rgba(232, 240, 255, 0.42);
+    background: rgba(232, 240, 255, 0.06);
+}
+
+.main {
+    flex: 1;
+    gap: clamp(4px, 1.8vw, 10px);
+    align-items: stretch;
+    margin-top: 1px;
+    min-height: 0;
+}
+
+.dan-block {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+}
+
+.dan-block[hidden] {
+    display: none;
+}
+
+.ln-block {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.block-name {
+    font-size: max(9px, calc(var(--fs) * 0.7));
+    letter-spacing: 0.18em;
+    color: rgba(232, 240, 255, 0.34);
+    line-height: 1;
+}
+
+.dan-line {
+    display: grid;
+    width: 100%;
+    grid-template-columns:
+        calc(var(--line-h) * 1.14)
+        calc(var(--line-h) * 1.25)
+        calc(var(--line-h) * 0.60);
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    min-width: 0;
+    height: var(--line-h);
+}
+
+.dan-line > .dan-prefix {
+    grid-column: 1;
+}
+
+.dan-line > .dan {
+    grid-column: 2;
+}
+
+.dan-line > .tier {
+    grid-column: 3;
+}
+
+.ln-block .dan-line {
+    /* LN 也是固定列宽；两组都居中，数字/字母位置不随内容变 */
+    justify-content: center;
+}
+
+.dan-prefix {
+    width: auto;
+    font-size: var(--prefix-fs);
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    color: var(--accent);
+    text-shadow: 0 0 14px currentColor;
+    flex: none;
+    text-align: left;
+    white-space: nowrap;
+    overflow: visible;
+}
+
+.ln-block .dan-prefix {
+    color: var(--ln-color);
+    text-align: right;
+}
+
+.dan {
+    position: relative;
+    width: auto;
+    height: var(--line-h);
+    font-size: calc(var(--glyph-h) * 0.62);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--accent);
+    text-shadow: 0 0 20px currentColor;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.ln-block .dan {
+    color: var(--ln-color);
+}
+
+.card.idle .dan {
+    color: #5d6884;
+    text-shadow: none;
+}
+
+.dan-sm {
+    font-size: 62%;
+}
+
+.dan-xs {
+    font-size: 44%;
+}
+
+/* VIBRO 占的是单字形格子（1.25 × line-h），5 个字母必须按格子宽度走。
+   字号先给个按格子算的初值，JS 的 fitLabel() 再按实际宽度兜底（只缩不放）。 */
+/* VIBRO 时前缀和后缀都是空的，所以让它**横跨整行**（原来只占一个字形列，
+   5 个字母只能缩到 12px，用户反馈「好小啊」）。整行宽约 2.99 × line-h，字号可以到 0.72。 */
+.dan-line > .dan.dan-vibro {
+    grid-column: 1 / -1;
+    /* 撑满整行而不是缩到内容宽 —— 这样 fitLabel() 量到的 clientWidth 才是真正的可用宽度，
+       窄窗口下才能正确触发缩放。 */
+    justify-self: stretch;
+    /* 网格项默认 min-width:auto，会被内容撑开、撑出卡片 —— 必须归零才能被压缩。 */
+    min-width: 0;
+    font-size: calc(var(--line-h) * 0.85);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    /* VIBRO 段会把 --accent 压成 #2b3140（为了黑色光晕），
+       直接吃 currentColor 会变成深底上的深字，几乎看不见 —— 这里单独给个暗灰。 */
+    color: rgba(206, 214, 230, 0.62);
+    text-shadow: none;
+}
+
+/* ---- 段位滚动（滚轮式换段）----
+   段位是图片不是文字，所以"滚轮"= 一列图标在裁剪框里上下滑。
+   裁剪框的高度取 --glyph-h，正好等于图标的视觉高度；
+   图标本身有 margin: -10% 0（为了让它在 .dan 里居中），所以这里用 translate 居中而不是靠流式布局。 */
+.dan-reel-clip {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 100%;
+    /* 高度由 JS 按图标实际渲染高度写成内联值 —— 竖版下 .dan-glyph 会被媒体查询
+       改成 min(44vh,46vw)，和 --glyph-h 不一致，硬编码会把卷轴缩成一小块。 */
+    height: var(--reel-step, var(--glyph-h));
+    transform: translate(-50%, -50%);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.dan-reel {
+    display: flex;
+    flex-direction: column;
+    will-change: transform;
+}
+
+.dan-reel img {
+    height: var(--reel-step, var(--glyph-h));
+    width: auto;
+    max-width: 100%;
+    display: block;
+    margin: 0 auto;
+    filter: brightness(1.14) saturate(1.06) drop-shadow(0 3px 8px rgba(0, 0, 0, 0.55));
+}
+
+.dan-glyph {
+    height: var(--glyph-h);
+    width: auto;
+    max-width: 100%;
+    display: block;
+    margin: calc(var(--glyph-h) * -0.1) 0;
+    filter: brightness(1.14) saturate(1.06) drop-shadow(0 3px 8px rgba(0, 0, 0, 0.55));
+}
+
+.tier {
+    align-self: start;
+    /* 贴到字形的右上角当上标：负左边距吃掉字形图片的透明边距，上边距对齐字顶 */
+    margin-top: calc(var(--glyph-h) * 0.02);
+    margin-left: -0.30em;
+    display: inline-flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: auto;
+    height: auto;
+    padding: 0;
+    border: none;
+    background: linear-gradient(135deg,
+        var(--tier-1, var(--accent)),
+        var(--tier-2, var(--accent)) 55%,
+        var(--tier-3, var(--accent)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    font-size: var(--tier-fs);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: 0;
+    text-shadow: none;
+    filter: drop-shadow(0 0 6px var(--tier-1, var(--accent)));
+    white-space: nowrap;
+    flex: none;
+}
+
+.tier[hidden] {
+    display: none;
+}
+
+.star em {
+    font-style: normal;
+    font-size: 9px;
+    color: rgba(232, 240, 255, 0.45);
+    margin-left: 2px;
+}
+
+@media (max-width: 420px), (max-height: 120px) {
+    .caption,
+    .sub,
+    .tag-mods,
+    .tag-algo {
+        display: none;
+    }
+
+    /* 窄窗口：优先把数字放大，前缀让位；加减号放大并紧跟数字 */
+    .dan-prefix {
+        display: none;
+    }
+
+    .dan-line {
+        grid-template-columns: 0 auto auto;
+        justify-content: center;
+        gap: 2%;
+        height: auto;
+        min-height: calc(min(44vh, 46vw) * 1.05);
+    }
+
+    .dan {
+        height: auto;
+        font-size: min(34vh, 36vw);
+    }
+
+    .dan-glyph {
+        height: min(44vh, 46vw);
+        max-width: 100%;
+        margin: -5% 0;
+    }
+
+    .tier {
+        font-size: min(14vh, 7vw);
+        align-self: start;
+        margin-top: 0;
+    }
+}
+
+/* 竖长窗口：RC / LN 上下排，数字尽量放大 */
+@media (max-aspect-ratio: 4/5) {
+    .main {
+        flex-direction: column;
+        align-items: stretch;
+        gap: clamp(2px, 1vh, 8px);
+    }
+
+    .dan-block {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .dan-prefix {
+        display: none;
+    }
+
+    .dan-line {
+        grid-template-columns: 0 auto auto;
+        justify-content: center;
+        gap: 2%;
+        height: auto;
+        min-height: calc(min(34vh, 42vw) * 1.05);
+    }
+
+    .dan {
+        height: auto;
+        font-size: min(30vh, 36vw);
+    }
+
+    .dan-glyph {
+        height: min(34vh, 42vw);
+        max-width: 100%;
+        margin: -4% 0;
+    }
+
+    .tier {
+        font-size: min(9vh, 8vw);
+        align-self: start;
+        margin-top: 0;
+    }
+}
+
+/* 窄窗口 / 竖长窗口：加减号放大并贴近字母，避免缩成小点 */
+@media (max-width: 420px), (max-aspect-ratio: 4/5) {
+    .dan-line {
+        gap: 0;
+    }
+
+    .tier {
+        /* 字号必须跟字形高度挂钩，不能再用固定 px 上限：
+           原来卡在 26px，字高 84px 时加减号只有字形的 1/3，用户反馈"太小"。
+           0.42 × 字高 ≈ 字形高度的一半，作为上标正好。 */
+        font-size: calc(min(34vh, 42vw) * 0.42);
+        align-self: start;
+        /* 负左边距吃掉字形图片的透明边距，让加减号贴到字形右上角 */
+        margin-top: -0.02em;
+        margin-left: -0.30em;
+        line-height: 0.95;
+    }
+}
