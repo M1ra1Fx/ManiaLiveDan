@@ -2,6 +2,16 @@
 
 **实时 osu!mania 段位 overlay（tosu 插件）**
 
+<p align="center">
+  <a href="https://github.com/M1ra1Fx/ManiaLiveDan/releases/latest/download/ManiaLiveDan.by.MiraiFx.zip">
+    <img alt="下载插件" src="https://img.shields.io/badge/%E2%AC%87%20%E4%B8%8B%E8%BD%BD%E6%8F%92%E4%BB%B6-Latest-2ea44f?style=for-the-badge&logo=github&logoColor=white">
+  </a>
+  <a href="https://github.com/M1ra1Fx/ManiaLiveDan/releases">
+    <img alt="所有版本" src="https://img.shields.io/badge/%E6%89%80%E6%9C%89%E7%89%88%E6%9C%AC-Releases-6e7681?style=for-the-badge">
+  </a>
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge">
+</p>
+
 按当前播放位置做**自适应分段**：难度长时间稳定的区段合并成长段并保持不动，
 难度在变化的区段保留更短、更密集的段，跨过段边界才切换。
 
@@ -36,6 +46,8 @@
 > 合计 7.965 → 9.246 星。代码里标了 `extrapolated`。
 
 ## 安装
+
+> 点页面顶部的 **下载插件** 按钮拿到 zip，解压后按下面步骤放进去即可。
 
 1. 把整个 `ManiaLiveDan.by.MiraiFx` 文件夹放进 tosu 的 `static` 目录
    （默认 `C:\Tosu\static\`，不要多套一层文件夹）。
