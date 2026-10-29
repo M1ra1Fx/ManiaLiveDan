@@ -43,6 +43,15 @@
 3. 游戏内 overlay 选中它，或 OBS 浏览器源打开：
    `http://localhost:24050/ManiaLiveDan.by.MiraiFx/`
 
+用 git 装的话，注意**文件夹名要保持 `ManiaLiveDan.by.MiraiFx`**（tosu 用它当计数器名）：
+
+```bash
+cd C:/Tosu/static
+git clone https://github.com/<你的用户名>/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
+```
+
+之后 `git pull` 就能直接更新正在用的计数器。
+
 ## 整图算法（面板里选）
 
 tosu 面板的计数器设置里有三个下拉，每个键数各自独立：
