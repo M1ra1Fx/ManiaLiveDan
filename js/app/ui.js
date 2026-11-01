@@ -2,6 +2,7 @@
 import { hasDanTable, parseRc, parseLn, tierMark } from "./dan.js";
 import { getMode } from "./modes/index.js";
 import { getSetting } from "./settings.js";
+import { t, getLanguage } from "./i18n.js";
 import { isLn17Style, LN17_CARD } from "./modes/palettes.js";
 import { APP } from "./config.js";
 
@@ -1083,6 +1084,8 @@ export function initUi() {
     el.lnPrefix = document.getElementById("ln-prefix");
     el.ln = document.getElementById("ln");
     el.lnTier = document.getElementById("ln-tier");
+    el.rcBlockName = document.getElementById("rc-block-name");
+    el.lnBlockName = document.getElementById("ln-block-name");
     el.stage = document.getElementById("stage");
     el.canvas = document.getElementById("tl");
     el.playhead = document.getElementById("playhead");
@@ -1104,13 +1107,26 @@ export function initUi() {
     }
 
     resetUi();
+    applyStaticText();
+}
+
+/** 面板里改了 language → 立刻把静态文案换掉（不依赖有没有谱面）。 */
+export function applyLanguage() {
+    applyStaticText();
+}
+
+/** 语言变了要把静态文案（块名 / 指示点 title）一起重刷。 */
+function applyStaticText() {
+    const strings = t(getLanguage());
+    if (el.rcBlockName) el.rcBlockName.textContent = strings.block.rc;
+    if (el.lnBlockName) el.lnBlockName.textContent = strings.block.ln;
 }
 
 export function resetUi() {
     lastAnalysis = null;
-    setStatus("等待谱面…", "idle");
+    setStatus(t(getLanguage()).status.waiting, "idle");
     el.card.classList.add("idle");
-    el.caption.textContent = "当前";
+    el.caption.textContent = t(getLanguage()).caption.current;
     resetMain();
     if (el.playhead) el.playhead.hidden = true;
     if (el.segHighlight) el.segHighlight.hidden = true;
@@ -1144,7 +1160,8 @@ function resetMain() {
 export function setConnection(connected) {
     if (!el.dot) return;
     el.dot.classList.toggle("on", Boolean(connected));
-    el.dot.title = connected ? "tosu 已连接" : "tosu 未连接";
+    const strings = t(getLanguage()).dot;
+    el.dot.title = connected ? strings.connected : strings.disconnected;
 }
 
 export function setStatus(text, tone = "idle") {
@@ -1240,7 +1257,8 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
         : ((playing && hasSection) ? null : wholeMapStar(analysis, wholeSrc));
 
     el.card.classList.remove("idle");
-    el.caption.textContent = playing ? "当前" : "整图";
+    const strings = t(getLanguage());
+    el.caption.textContent = playing ? strings.caption.current : strings.caption.whole;
 
     // 当前段位用哪个算法：默认 Sunny（只有它带局部信息），
     // 开了 APP.segmentEstimator="mixed" 才是 Mixed。
@@ -1256,7 +1274,7 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
     const rcVisible = Boolean(rc) && !isHiddenIntro(rc) && !vibro;
     applyCardGlow(rcVisible ? rc : null, vibro ? null : ln, vibro || rcVisible || Boolean(ln), vibro, analysis.keys);
     if (vibro) {
-        renderGlyph(el.dan, { text: "VIBRO", alt: "VIBRO 段落（个人差大，不标段位）" });
+        renderGlyph(el.dan, { text: "VIBRO", alt: strings.placeholder.vibro });
         el.dan.className = "dan dan-vibro";
         fitLabel(el.dan);
         el.rcPrefix.textContent = "";
@@ -1283,11 +1301,11 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
         el.rcBlock.style.setProperty("--accent", rc.color || "#6d7894");
     } else {
         el.rcPrefix.textContent = "";
-        const placeholder = !supported ? "无段位表"
-            : (hasSection && section.notes === 0 ? "休止" : "—");
+        const placeholder = !supported ? strings.placeholder.noTable
+            : (hasSection && section.notes === 0 ? strings.placeholder.rest : strings.placeholder.dash);
         renderGlyph(el.dan, { text: placeholder });
         lastRcRank = null;
-        if (placeholder === "—") el.dan.className = "dan dan-sm";
+        if (placeholder === strings.placeholder.dash) el.dan.className = "dan dan-sm";
         el.tier.textContent = "";
         el.tier.hidden = true;
         el.card.style.setProperty("--accent", "#6d7894");
@@ -1323,7 +1341,7 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
             el.lnBlock.style.setProperty("--ln-color", ln.color || "#ff9d5c");
         } else {
             el.lnPrefix.textContent = "LN";
-            renderGlyph(el.ln, { text: "—", alt: "本段没有 LN 难度" });
+            renderGlyph(el.ln, { text: strings.placeholder.dash, alt: strings.placeholder.noLn });
             lastLnRank = null;
             el.lnTier.textContent = "";
             el.lnTier.hidden = true;
@@ -1339,19 +1357,19 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
     // ---- 说明行 ----
     if (playing && hasSection) {
         if (Number.isFinite(segmentIndex) && Number.isFinite(segmentTotal) && segmentTotal > 0) {
-            el.sub.textContent = `第 ${segmentIndex + 1}/${segmentTotal} 段 · ${section.notes} 键`;
+            el.sub.textContent = strings.sub.segment(segmentIndex + 1, segmentTotal, section.notes);
         } else {
             const windowSeconds = Math.round((analysis.windowMs || 0) / 1000);
             const futureSeconds = Math.round((analysis.futureMs || 0) / 1000);
             const pastSeconds = Math.max(0, windowSeconds - futureSeconds);
             let rangeText;
-            if (futureSeconds <= 0) rangeText = "当前段";
+            if (futureSeconds <= 0) rangeText = strings.sub.currentSegment;
             else if (pastSeconds <= 0) rangeText = `+${futureSeconds}s`;
             else rangeText = `-${pastSeconds}s / +${futureSeconds}s`;
-            el.sub.textContent = `${rangeText} · ${section.notes} 键`;
+            el.sub.textContent = `${rangeText} · ${strings.sub.notes(section.notes)}`;
         }
     } else {
-        el.sub.textContent = analysis.keys ? `${analysis.keys}K 谱面` : "";
+        el.sub.textContent = analysis.keys ? strings.sub.keys(analysis.keys) : "";
     }
 }
 

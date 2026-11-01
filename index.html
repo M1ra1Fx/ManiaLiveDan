@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8" />
@@ -15,20 +15,20 @@
     <svg class="card-glow" id="card-glow-b" viewBox="0 0 520 170" preserveAspectRatio="none" aria-hidden="true"></svg>
     <main class="card" id="card">
         <header class="row head">
-            <span class="dot" id="dot" title="tosu 连接状态"></span>
-            <span class="status" id="status">等待谱面…</span>
-            <span class="caption" id="caption">当前段位</span>
+            <span class="dot" id="dot" title="tosu connection status"></span>
+            <span class="status" id="status">Waiting for beatmap…</span>
+            <span class="caption" id="caption">Current</span>
             <span class="spacer"></span>
             <span class="sub" id="sub"></span>
             <span class="star-tag"><span id="star">--</span><em>★</em></span>
             <span class="tag" id="keys" hidden>4K</span>
             <span class="tag tag-mods" id="mods" hidden>DT 1.50x</span>
-            <span class="tag tag-algo" id="algo" title="当前段位所用的算法">Sunny</span>
+            <span class="tag tag-algo" id="algo" title="Algorithm used for the current dan">Sunny</span>
         </header>
 
         <section class="row main">
             <div class="dan-block rc-block" id="rc-block">
-                <div class="block-name">米段</div>
+                <div class="block-name" id="rc-block-name">RC DAN</div>
                 <div class="dan-line">
                     <span class="dan-prefix" id="rc-prefix"></span>
                     <span class="dan" id="dan">--</span>
@@ -37,7 +37,7 @@
             </div>
 
             <div class="dan-block ln-block" id="ln-block" hidden>
-                <div class="block-name">LN段</div>
+                <div class="block-name" id="ln-block-name">LN DAN</div>
                 <div class="dan-line">
                     <span class="dan-prefix" id="ln-prefix">LN</span>
                     <span class="dan" id="ln">--</span>

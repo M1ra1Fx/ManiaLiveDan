@@ -1,6 +1,6 @@
-# NOTICE / 第三方代码与许可
+# NOTICE / Third-party code and licenses
 
-本插件 `ManiaLiveDan`（作者 MiraiFx）以 **MIT License** 发布：
+This plugin, `ManiaLiveDan` (by MiraiFx), is released under the **MIT License**:
 
 ```
 MIT License
@@ -26,10 +26,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## 内置的第三方算法代码
+## Bundled third-party algorithm code
 
-以下文件复制自 **ManiaMapAnalyser**（https://github.com/LeoBlackMT/osumania_map_analyser），
-Copyright (c) 2026 Leo_Black，MIT License（全文同上）：
+The following files are copied from **ManiaMapAnalyser**
+(https://github.com/LeoBlackMT/osumania_map_analyser),
+Copyright (c) 2026 Leo_Black, MIT License (full text above):
 
 - `js/lib/rework/sunnyAlgorithm.js`
 - `js/lib/rework/sunnyWindowAlgorithm.js`
@@ -40,37 +41,40 @@ Copyright (c) 2026 Leo_Black，MIT License（全文同上）：
 - `js/lib/estimator/reworkEstimatorUtils.js`
 - `js/lib/estimator/intervals/*.js`
 
-其中 Sunny Rework 算法原始出处：
+The Sunny Rework algorithm originates from:
 **Star-Rating-Rebirth** by sunnyxxy — https://github.com/sunnyxxy/Star-Rating-Rebirth
 
-### 相对上游的修改（仅两处，均为向后兼容）
+### Modifications relative to upstream (two only, both backward compatible)
 
-1. `sunnyAlgorithm.js` 的 `calculate()`：
-   - 新增 `options.lengthFactorOverride`：>0 时替换 `totalNotes/(totalNotes+60)` 长度惩罚；
-   - 新增 `options.withMeta === true` 时返回 `{ star, lnRatio, columnCount, totalNotes }`。
-2. `sunnyWindowAlgorithm.js` 的 `calculateLN()`：
-   - 同样支持 `lengthFactorOverride`；返回对象新增 `totalNotes`。
+1. `calculate()` in `sunnyAlgorithm.js`:
+   - adds `options.lengthFactorOverride`: when > 0 it replaces the
+     `totalNotes/(totalNotes+60)` length penalty;
+   - adds `options.withMeta === true`, which returns `{ star, lnRatio, columnCount, totalNotes }`.
+2. `calculateLN()` in `sunnyWindowAlgorithm.js`:
+   - likewise supports `lengthFactorOverride`; the returned object gains `totalNotes`.
 
-默认调用路径（不传新 options）的输出与上游实现逐位一致（Node 侧对拍 diff = 0）。
+On the default call path (without the new options) the output is bit-identical to upstream
+(Node-side comparison diff = 0).
 
-## 内置的第三方算法代码（0.4.0 新增，均为 MIT）
+## Bundled third-party algorithm code (added in 0.4.0, all MIT)
 
-0.4.0 起不再在运行时 import ManiaMapAnalyser，而是把它的算法整包搬进
-`js/lib/`，因此下面这些文件**随本插件分发**，版权归原作者 Leo_Black：
+Starting with 0.4.0 the plugin no longer imports ManiaMapAnalyser at runtime; its algorithms are
+copied wholesale into `js/lib/`, so the following files **ship with this plugin** and remain
+copyrighted by their original author, Leo_Black:
 
-- `js/lib/estimator/`：`sunnyEstimator.js`、`sunnyWindowEstimator.js`、
-  `danielEstimator.js`、`azusaEstimator.js`、`roxyEstimator.js`、
-  `roxyMetaModel.generated.js`、`mixedEstimator.js`、`companellaEstimator.js`、
-  `rcDifficultyFormat.js`、`reworkEstimatorUtils.js`、`intervals/*.js`
+- `js/lib/estimator/`: `sunnyEstimator.js`, `sunnyWindowEstimator.js`,
+  `danielEstimator.js`, `azusaEstimator.js`, `roxyEstimator.js`,
+  `roxyMetaModel.generated.js`, `mixedEstimator.js`, `companellaEstimator.js`,
+  `rcDifficultyFormat.js`, `reworkEstimatorUtils.js`, `intervals/*.js`
 - `js/lib/rework/danielAlgorithm.js`
-- `js/lib/ett/`（Etterna MinaCalc，用于 MSD 与 vibro 相关技能值）
+- `js/lib/ett/` (Etterna MinaCalc, used for MSD and the skill values behind vibro detection)
 - `js/lib/interlude/`
 - `js/lib/patterns/`
 - `js/lib/pipeline/runAnalysisPipeline.js`
-- `js/lib/estimator/companella/`（`dan_model.onnx` + ONNX Runtime Web，约 13 MB）
+- `js/lib/estimator/companella/` (`dan_model.onnx` + ONNX Runtime Web, roughly 13 MB)
 
-## 图片素材
+## Image assets
 
-`assets/dan/{4k,6k,7k}/` 下的段位徽章（数字、希腊字母、具名档及各自的
-low / mid-low / mid-high / high 变体）取自 **mania-tracker.com**，
-仅用于本插件的段位展示；如需再分发请自行确认素材来源与授权。
+The dan badges under `assets/dan/{4k,6k,7k}/` (numbers, Greek letters, named tiers and their
+low / mid-low / mid-high / high variants) come from **mania-tracker.com** and are used here only to
+display dan; confirm the asset source and licensing yourself before redistributing.

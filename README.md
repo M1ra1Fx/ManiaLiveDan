@@ -1,183 +1,215 @@
 # ManiaLiveDan
 
-**实时 osu!mania 段位 overlay（tosu 插件）**
+**English** | [中文](README.zh-CN.md)
+
+**Real-time osu!mania dan overlay (tosu plugin)**
 
 <p align="center">
   <a href="https://github.com/M1ra1Fx/ManiaLiveDan/releases/latest/download/ManiaLiveDan.by.MiraiFx.zip">
-    <img alt="下载插件" src="https://img.shields.io/badge/%E2%AC%87%20%E4%B8%8B%E8%BD%BD%E6%8F%92%E4%BB%B6-Latest-2ea44f?style=for-the-badge&logo=github&logoColor=white">
+    <img alt="Download plugin" src="https://img.shields.io/badge/%E2%AC%87%20Download-Latest-2ea44f?style=for-the-badge&logo=github&logoColor=white">
   </a>
   <a href="https://github.com/M1ra1Fx/ManiaLiveDan/releases">
-    <img alt="所有版本" src="https://img.shields.io/badge/%E6%89%80%E6%9C%89%E7%89%88%E6%9C%AC-Releases-6e7681?style=for-the-badge">
+    <img alt="All releases" src="https://img.shields.io/badge/All%20Releases-Releases-6e7681?style=for-the-badge">
   </a>
   <img alt="License" src="https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge">
 </p>
 
-按当前播放位置做**自适应分段**：难度长时间稳定的区段合并成长段并保持不动，
-难度在变化的区段保留更短、更密集的段，跨过段边界才切换。
+Segments adapt to the current playback position: stretches where difficulty stays stable are
+merged into long, held segments, while stretches that change keep shorter, denser segments.
+The display only switches when you cross a segment boundary.
 
-**0.4.0 起支持 4K / 6K / 7K 三套独立段位体系**，并且算法全部内置，不再依赖 ManiaMapAnalyser。
+**Since 0.4.0 there are three independent dan systems for 4K / 6K / 7K**, and every algorithm is
+bundled locally — ManiaMapAnalyser is no longer required.
 
-## 预览
+## Preview
 
 <p align="center">
-  <img src="docs/preview-4k.png" width="620" alt="4K 横版">
-  <img src="docs/preview-7k.png" width="230" alt="7K 竖版">
+  <img src="docs/preview-4k.png" width="620" alt="4K horizontal">
+  <img src="docs/preview-7k.png" width="230" alt="7K vertical">
 </p>
 
 <p align="center">
-  <img src="docs/preview-7k-top.png" width="300" alt="7K Stellium 五彩白">
+  <img src="docs/preview-7k-top.png" width="300" alt="7K Stellium rainbow-white">
 </p>
 
-## 支持的段位阶梯
+## Supported dan ladders
 
-| 键数 | RC | LN |
+| Keys | RC | LN |
 | --- | --- | --- |
 | 4K | `Reform 1`–`Reform 10` → `α / β / γ / δ / ε / ζ / η / θ / ι / κ` | `LN 1`–`LN 17` |
-| 6K | `Regular 0`–`Regular 9` → `Terra / Celestial / Mystery / Nihility / Finish` | 同 RC |
-| 7K | `Regular 0`–`Regular 10` → `Gamma / Azimuth / Zenith / Stellium` | 同 RC |
+| 6K | `Regular 0`–`Regular 9` → `Terra / Celestial / Mystery / Nihility / Finish` | same as RC |
+| 7K | `Regular 0`–`Regular 10` → `Gamma / Azimuth / Zenith / Stellium` | same as RC |
 
-- 每档再分 5 小档：`low / mid-low / mid / mid-high / high`
-- 5K / 8K / 9K / 10K 没有段位表，只显示星数
-- 7K 不做 `Wild` 表；超过 Stellium 封顶在 `Stellium high`
+- Every tier is split into 5 sub-tiers: `low / mid-low / mid / mid-high / high`
+- 5K / 8K / 9K / 10K have no dan table and only show star rating
+- 7K has no `Wild` table; anything above Stellium caps at `Stellium high`
 
-> ⚠️ **6K 的 Terra…Finish 五档是推算值**，不是官方阈值。上游 ManiaMapAnalyser 的 6K 表只到
-> `Regular 9 high`（7.965 星），网页的 6K 阶梯还有这五档但星数区间未公开。这里按上游自己的
-> 档距递减规律接上去（Regular 8 宽 0.36、Regular 9 宽 0.33，之后每档 ×0.917 收窄），
-> 合计 7.965 → 9.246 星。代码里标了 `extrapolated`。
+> ⚠️ **The 6K `Terra…Finish` tiers are extrapolated**, not official thresholds. The upstream
+> ManiaMapAnalyser 6K table stops at `Regular 9 high` (7.965 stars); the web ladder lists these
+> five further tiers but the star ranges are not published. They are appended using upstream's own
+> shrinking step pattern (Regular 8 spans 0.36, Regular 9 spans 0.33, then each tier narrows ×0.917),
+> giving 7.965 → 9.246 stars in total. This is marked `extrapolated` in the code.
 
-## 安装
+## Installation
 
-> 点页面顶部的 **下载插件** 按钮拿到 zip，解压后按下面步骤放进去即可。
+> Use the **Download** button at the top of this page to grab the zip, then unpack it as below.
 
-1. 把整个 `ManiaLiveDan.by.MiraiFx` 文件夹放进 tosu 的 `static` 目录
-   （默认 `C:\Tosu\static\`，不要多套一层文件夹）。
-2. 重启 tosu 或刷新 dashboard → Counters 列表里会出现 **ManiaLiveDan**。
-3. 游戏内 overlay 选中它，或 OBS 浏览器源打开：
+1. Put the whole `ManiaLiveDan.by.MiraiFx` folder into tosu's `static` directory
+   (by default `C:\Tosu\static\` — do not nest it an extra level).
+2. Restart tosu or refresh the dashboard → **ManiaLiveDan** appears in the Counters list.
+3. Select it as your in-game overlay, or open it as an OBS browser source:
    `http://localhost:24050/ManiaLiveDan.by.MiraiFx/`
 
-用 git 装的话，注意**文件夹名要保持 `ManiaLiveDan.by.MiraiFx`**（tosu 用它当计数器名）：
+To install with git, **keep the folder name `ManiaLiveDan.by.MiraiFx`** (tosu uses it as the
+counter name):
 
 ```bash
 cd C:/Tosu/static
-git clone https://github.com/<你的用户名>/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
+git clone https://github.com/<your-username>/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
 ```
 
-之后 `git pull` 就能直接更新正在用的计数器。
+After that, `git pull` updates the counter you are using directly.
 
-## 整图算法（面板里选）
+## Language
 
-tosu 面板的计数器设置里有三个下拉，每个键数各自独立：
+The overlay interface defaults to **English**. To switch it, open the counter settings in the
+tosu panel and change **Language / 语言** (`en` / `zh`). The change takes effect immediately —
+no page refresh needed.
 
-| 键数 | 可选算法 | 默认 |
+The default for fresh installs lives in `js/app/config.js` (`language: "en"`), and the panel
+setting in `settings.json` overrides it.
+
+## Whole-map algorithm (chosen in the panel)
+
+The tosu panel's counter settings have three dropdowns, one per key mode:
+
+| Keys | Available algorithms | Default |
 | --- | --- | --- |
 | 4K | `Mixed / Azusa / Roxy / Sunny / Daniel / Companella` | Mixed |
 | 6K | `Mixed / Sunny / Daniel` | Mixed |
 | 7K | `Mixed / Sunny / Daniel` | Mixed |
 
-- **Azusa / Roxy 源码里只支持 4K**，所以 6K/7K 不提供这两项
-- **Companella 只对 4K 有意义**（它吃的是 4K 的 MSD 口径）
-- 改了下拉 → **当前这张谱立刻重算**
-- 「当前这段」固定用 Sunny：只有它带局部信息，Mixed 喂 5–20 秒片段会退化成窗口长度的单调函数
+- **Azusa / Roxy only support 4K in their source**, so they are not offered for 6K/7K
+- **Companella is only meaningful for 4K** (it consumes the 4K MSD scale)
+- Changing a dropdown → **the current beatmap is re-estimated immediately**
+- "Current segment" always uses Sunny: it is the only estimator with local information; feeding a
+  5–20 second slice to Mixed degenerates into a monotonic function of window length
 
-## Vibro 段判定
+## Vibro segment detection
 
-vibro 是「单列速度超过人类手指连打极限」的段落。星数算法一定会把它当极限 JackSpeed 算高
-（RPG 7* 里那段会被算成 `LN17+ε`），但会 vibro 的人能轻松过，所以这个数字对玩家是误导。
+Vibro is a stretch where a single column's speed exceeds what human fingers can tap. Star rating
+algorithms will inevitably rate it high as extreme JackSpeed (in RPG 7* that stretch comes out as
+`LN17+ε`), but players who can vibro clear it comfortably — so that number misleads players.
 
-本插件**不改难度算法**，只在分段层独立判定，判成 vibro 的段落显示 `VIBRO`，不给段位数字。
+This plugin **does not change the difficulty algorithm**; it only detects vibro independently at the
+segmentation layer. Segments classified as vibro display `VIBRO` instead of a dan number.
 
-四条判据（同时成立）：
+Four criteria (all must hold):
 
-1. 最忙单列 ≥ **10 NPS**（正常手指上限约 9–10）
-2. 同列相邻间隔中位数 ≤ **100ms**
-3. 该列音符的**单音率 ≥ 0.4** —— 至少四成音符是单独落下的，不是全被和弦裹住
-4. 连续超短间隔持续 ≥ **1.0s**
+1. Busiest single column ≥ **10 NPS** (the normal finger limit is around 9–10)
+2. Median gap between consecutive notes in that column ≤ **100 ms**
+3. That column's **single-note ratio ≥ 0.4** — at least 40% of its notes land alone, rather than
+   all being wrapped inside chords
+4. Consecutive ultra-short gaps lasting ≥ **1.0 s**
 
-第 3 条专门用来挡住「高速三押叠键」：三押时每一列都能刷到 20 NPS，只靠 1、2 条分不开。
-阈值放到 100ms / 0.4 是为了让「锚点连打」也算 vibro——某一列 97ms 一下不停地响、
-其它列叠和弦上去（RPG Overdrive 158s / 170s 那段）。三押叠键的单音率接近 0，仍会被挡住。
+Criterion 3 exists specifically to reject "fast triple-stack chords": during triple stacks every
+column can hit 20 NPS, and criteria 1 and 2 alone cannot tell the two apart. The thresholds were
+loosened to 100 ms / 0.4 so that "anchor spam" also counts as vibro — one column firing
+continuously at 97 ms with chords stacked on the other columns (the RPG Overdrive 158 s / 170 s
+stretch). Triple-stack chords have a single-note ratio near 0 and are still rejected.
 
-判定在**整张谱**上找连打串，再按时间归到各段（段内占比 ≥ 45% 才整段标 VIBRO），
-因为 vibro 串通常只有 1–1.5 秒，逐段找会被边界切断。
+Detection looks for spam runs across the **entire beatmap** and then assigns them to segments by
+time (a segment is marked VIBRO when ≥ 45% of it is covered), because vibro runs usually last only
+1–1.5 seconds and per-segment detection would cut them at boundaries.
 
-## 显示
+## Display
 
-| 区域 | 含义 |
+| Area | Meaning |
 | --- | --- |
-| 左上 | 连接/状态、`4K`/`6K`/`7K`、mods、算法标签 |
-| **米段** | 当前段落的 RC 段位徽章 |
-| **LN段** | 同一段落的 LN 段位徽章，与米段同尺寸并排 |
-| 星数徽章 | 当前段落的 Sunny 星数 |
-| `整图` | 整张谱面的段位（按选中的算法） |
+| Top-left | Connection/status, `4K`/`6K`/`7K`, mods, algorithm tag |
+| **RC DAN** | RC dan badge for the current segment |
+| **LN DAN** | LN dan badge for the same segment, side by side at the same size |
+| Star badge | Sunny star rating for the current segment |
+| `Whole map` | Dan for the entire beatmap (using the selected algorithm) |
 
-- 徽章素材取自 mania-tracker，**分档直接换图**（`-low / -mid-low / -mid-high / -high`），
-  默认不再画 `-- / - / + / ++` 符号，也不显示 `Reform` / `Regular` 前缀
-- 面板里可开 **Show Tier Mark / 显示分档角标**：在徽章右上角额外补一个 `-- / - / + / ++` 上标（默认关）
-- **整张谱没有 LN 段位**（零长条，或低于 LN 表下限）→ LN 块**整块不显示**，选歌界面也不画杠
-- 有 LN 段位时：**打歌中**当前段没有 LN → 隐藏；**选歌/待机** → 一直显示
-- 竖长窗口（宽高比 ≤4:5）自动把米段/LN 段上下排
+- Badge art comes from mania-tracker, and **the sub-tier swaps the image directly**
+  (`-low / -mid-low / -mid-high / -high`). The `-- / - / + / ++` marks and the
+  `Reform` / `Regular` prefix are no longer drawn by default
+- The panel offers **Show Tier Mark**: adds a `-- / - / + / ++` superscript at the badge's
+  top-right corner (off by default)
+- **No LN dan anywhere in the beatmap** (zero hold notes, or below the LN table floor) → the LN
+  block is **hidden entirely**, and no dash is drawn in song select either
+- When LN dan exists: **during play** it hides if the current segment has no LN;
+  **in song select / idle** it is always shown
+- Tall windows (aspect ratio ≤ 4:5) automatically stack the RC and LN blocks vertically
 
-## 霓虹灯
+## Neon glow
 
-- **RC 1–10 段**：白色系，越上越白
-- **RC 10 段以上（具名档）**：用各自的手调色卡（`js/app/modes/palettes.js`）。
-  网页这些徽章本身是单色银质，抽色抽不出区分度，所以手调了一套递进色
-- **LN 1–10**：白色（0.4.0 起删掉了原来的浅水蓝）
-- **6K / 7K 整体比 4K 亮一档**：难度系数 ×1.5，转速同步 +50%
-- **呼吸**：4K 从 `rank ≥ 14`（Delta）起；**6K/7K 从 7dan 起**，暗端钉在自己 7dan 的亮度
-- 弧长：`RC rank × 2 : LN rank`，LN 封顶 1/3
+- **RC tiers 1–10**: white palette, brighter the higher you go
+- **RC above tier 10 (named tiers)**: each uses its own hand-tuned palette
+  (`js/app/modes/palettes.js`). The web badges are monochrome silver, so sampling their colors
+  yields no differentiation — a graded palette was tuned by hand instead
+- **LN 1–10**: white (the earlier pale-aqua was removed in 0.4.0)
+- **6K / 7K are one step brighter than 4K overall**: difficulty coefficient ×1.5, spin speed +50%
+- **Breathing**: 4K starts at `rank ≥ 14` (Delta); **6K/7K start at 7dan**, with the dark end
+  pinned to that mode's own 7dan brightness
+- Arc length: `RC rank × 2 : LN rank`, with LN capped at 1/3
 
-## 可调参数
+## Tunable parameters
 
-`js/app/config.js`：
+In `js/app/config.js`:
 
-- `defaultAlgorithm`：面板没设置时的默认算法（默认 `Mixed`）
-- `estimatorTimeoutMs`：单次整图分析超时（默认 60s）
-- `showLnMinStar`：4K 的 LN 显示门槛（默认 4.84；6K/7K 用各自表下限）
-- `segmentationEnabled` / `segmentCurveWindowMs` / `segmentMinMs`：自适应分段
-- `extendedRange`：4K 用扩展段位表（默认 `false`）
-- `glowBaseSpeed` / `glowRcShareWeight`：光环线速度与弧长权重
+- `language`: interface language when the panel has no setting (default `"en"`)
+- `defaultAlgorithm`: algorithm used when the panel has no setting (default `Mixed`)
+- `estimatorTimeoutMs`: per whole-map analysis timeout (default 60 s)
+- `showLnMinStar`: 4K's LN display floor (default 4.84; 6K/7K use their own table floors)
+- `segmentationEnabled` / `segmentCurveWindowMs` / `segmentMinMs`: adaptive segmentation
+- `extendedRange`: use 4K's extended dan table (default `false`)
+- `glowBaseSpeed` / `glowRcShareWeight`: glow linear speed and arc-length weights
 
-## 实现要点
+## Implementation notes
 
-- 谱面来源：tosu `/websocket/v2` + `/files/beatmap/file`
-- 三个模块：`js/app/modes/mode4k.js` / `mode6k.js` / `mode7k.js`，各自带段位表、徽章路径、
-  LN 门槛、光环参数；改 6K 不会碰到 4K
-- 算法：`js/lib/estimator/`（Sunny / Daniel / Azusa / Roxy / Mixed / Companella），
-  Etterna（MSD）在 `js/lib/ett/`，ONNX 运行时在 `js/lib/estimator/companella/`
-- 长度口径：用整张图的长度因子替换切片自身的长度因子，让「段落段位」与「整图段位」同一把尺子
+- Beatmap source: tosu `/websocket/v2` + `/files/beatmap/file`
+- Three modules: `js/app/modes/mode4k.js` / `mode6k.js` / `mode7k.js`, each carrying its own dan
+  table, badge paths, LN floor and glow parameters; changing 6K never touches 4K
+- Algorithms: `js/lib/estimator/` (Sunny / Daniel / Azusa / Roxy / Mixed / Companella),
+  Etterna (MSD) in `js/lib/ett/`, ONNX runtime in `js/lib/estimator/companella/`
+- Length scale: the slice's own length factor is replaced with the whole-map length factor, so
+  segment dan and whole-map dan are measured with the same ruler
 
-## 已知限制
+## Known limitations
 
-- 6K 的 Terra…Finish 是推算值
-- 插件体积约 15 MB（含 ONNX 运行时），首次加载会有几秒预热
-- 移植的算法若上游更新，需要手动同步
-- 5K / 8K / 9K / 10K 无段位表
+- The 6K `Terra…Finish` tiers are extrapolated values
+- The plugin is roughly 15 MB (it bundles the ONNX runtime); the first load takes a few seconds to warm up
+- If an upstream algorithm is ported and later updated, the copy must be synced manually
+- 5K / 8K / 9K / 10K have no dan table
 
-## 致谢 / 许可
+## Credits / License
 
-- 算法与段位区间表：**ManiaMapAnalyser** by Leo_Black — MIT
+- Algorithms and dan interval tables: **ManiaMapAnalyser** by Leo_Black — MIT
   https://github.com/LeoBlackMT/osumania_map_analyser
-- 原始算法：**Sunny Rework**（Star-Rating-Rebirth） by sunnyxxy
+- Original algorithm: **Sunny Rework** (Star-Rating-Rebirth) by sunnyxxy
   https://github.com/sunnyxxy/Star-Rating-Rebirth
-- 段位徽章素材：**mania-tracker.com**
-- 运行环境：**tosu** — https://tosu.app
+- Dan badge art: **mania-tracker.com**
+- Runtime environment: **tosu** — https://tosu.app
 
-本插件自身代码以 MIT 发布，详见 `NOTICE.md`。
+This plugin's own code is released under MIT; see `NOTICE.md` for details.
 
-## 开发
+## Development
 
-没有构建步骤，全是原生 ES Module，改完刷新页面即可。
+There is no build step — everything is plain ES modules, so just edit and refresh the page.
 
 ```
-js/app/          应用层（模式分发、分段、UI、vibro 判定）
-js/lib/          移植进来的算法（estimator / ett / interlude / patterns / pipeline）
-assets/dan/      段位徽章，4k / 6k / 7k 三套
-styles.css       卡片与光晕样式
+js/app/          application layer (mode dispatch, segmentation, UI, vibro detection)
+js/lib/          ported algorithms (estimator / ett / interlude / patterns / pipeline)
+assets/dan/      dan badges, three sets: 4k / 6k / 7k
+styles.css       card and glow styling
 ```
 
-调试时可以用浏览器直接打开计数器页面，控制台里 `window.__MLD` 有当前分析结果与设置快照。
+For debugging you can open the counter page directly in a browser; `window.__MLD` in the console
+holds the current analysis result and a settings snapshot.
 
-## 许可证
+## License
 
-本项目以 [MIT](LICENSE) 发布。内置的第三方算法与图片素材各有其授权，详见 [NOTICE.md](NOTICE.md)。
+This project is released under [MIT](LICENSE). The bundled third-party algorithms and image assets
+carry their own licenses; see [NOTICE.md](NOTICE.md).

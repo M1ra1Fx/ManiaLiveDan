@@ -15,6 +15,7 @@ import {
     warmupEstimators,
 } from "./estimate.js";
 import { startSettingsStream, getSetting, onSettingsChange } from "./settings.js";
+import { t, getLanguage } from "./i18n.js";
 import * as ui from "./ui.js";
 
 const analysisCache = new Map(); // `${identity}|${modSignature}` → analysis
@@ -49,20 +50,20 @@ const clock = new LiveClock();
 
 export function boot() {
     ui.initUi();
-    ui.setStatus("连接 tosu…", "loading");
+    ui.setStatus(t(getLanguage()).status.connecting, "loading");
 
     const socket = new TosuSocket({
         onMessage: onMessage,
         onStatus: (connected) => {
             ui.setConnection(connected);
             if (!connected) {
-                setStatus("tosu 连接断开", "error");
+                setStatus(t(getLanguage()).status.disconnected, "error");
             } else if (state.statusOverride) {
                 setStatus(state.statusOverride.text, state.statusOverride.tone);
             } else if (state.analysis) {
                 refreshStatus();
             } else {
-                setStatus("等待谱面…", "idle");
+                setStatus(t(getLanguage()).status.waiting, "idle");
             }
         },
     });
@@ -72,7 +73,13 @@ export function boot() {
     startSettingsStream();
     // 面板里换了算法 → 立刻重算当前谱面的整图段位（规格：换算法立刻生效）
     onSettingsChange(() => {
-        if (!state.analysis) return;
+        // 语言：静态文案先换掉，再重画（重画会重写 caption / sub / status）。
+        ui.applyLanguage();
+        if (!state.analysis) {
+            ui.resetUi();
+            refreshStatus({ force: true });
+            return;
+        }
         // 分档角标之类的显示开关：立刻重画
         renderCurrent();
         const next = algorithmFor(state.analysis.keys);
@@ -143,7 +150,7 @@ function activate(key, beat) {
     state.loadRetries = 0;
     stopPrefill();
     ui.showCurrent(null, null, { playing: false });
-    setStatusOverride("读取谱面…", "loading");
+    setStatusOverride(t(getLanguage()).status.reading, "loading");
 
     loadAnalysis(token, key, beat, { ...state.mods });
 }
@@ -154,12 +161,12 @@ async function loadAnalysis(token, key, beat, mods) {
     if (!text) {
         state.loadRetries += 1;
         if (state.loadRetries <= 10) {
-            setStatusOverride(`拿不到谱面文件（重试 ${state.loadRetries}/10）`, "error");
+            setStatusOverride(t(getLanguage()).status.readingRetry(state.loadRetries, 10), "error");
             setTimeout(() => {
                 if (token === state.requestToken) loadAnalysis(token, key, beat, mods);
             }, 2500);
         } else {
-            setStatusOverride("拿不到谱面文件", "error");
+            setStatusOverride(t(getLanguage()).status.noFile, "error");
         }
         return;
     }
@@ -350,7 +357,7 @@ function tick() {
     if (stale !== state.stale) {
         state.stale = stale;
         if (stale) {
-            setStatusOverride("tosu 无响应", "error");
+            setStatusOverride(t(getLanguage()).status.unresponsive, "error");
         } else {
             state.statusOverride = null;
             refreshStatus({ force: true });
@@ -424,7 +431,7 @@ function setIdle() {
         ui.showCurrent(null, null, { playing: false });
         ui.renderTimeline(null);
     }
-    setStatus("等待谱面…", "idle");
+    setStatus(t(getLanguage()).status.waiting, "idle");
     ui.setKeys(null);
     ui.setMods("");
 }
@@ -435,17 +442,18 @@ function refreshStatus({ force = false } = {}) {
     let key;
     let text;
     let tone;
+    const strings = t(getLanguage()).status;
     if (!state.analysis) {
         key = "no-analysis";
-        text = "等待谱面…";
+        text = strings.waiting;
         tone = "idle";
     } else if (state.beat && state.beat.playing) {
         key = "playing";
-        text = "实时段位";
+        text = strings.live;
         tone = "ok";
     } else {
         key = "ready";
-        text = "等待开始";
+        text = strings.ready;
         tone = "ok";
     }
     if (!force && key === state.statusKey) return;
@@ -471,10 +479,11 @@ function formatMods(mods) {
 }
 
 function errorText(code) {
+    const strings = t(getLanguage()).status;
     switch (code) {
-        case "not-mania": return "非 osu!mania 谱面";
-        case "empty-chart": return "谱面没有音符";
-        default: return "谱面解析失败";
+        case "not-mania": return strings.errorNotMania;
+        case "empty-chart": return strings.errorEmpty;
+        default: return strings.errorParse;
     }
 }
 

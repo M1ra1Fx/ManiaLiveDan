@@ -1,5 +1,13 @@
 [
 	{
+		"uniqueID": "language",
+		"type": "options",
+		"title": "Language / 语言",
+		"description": "UI language of the overlay. / 悬浮窗界面语言。",
+		"options": ["en", "zh"],
+		"value": "en"
+	},
+	{
 		"uniqueID": "showOnlyInGame",
 		"type": "checkbox",
 		"title": "Only Show In Game / 只在游戏中显示",
@@ -27,7 +35,7 @@
 		"uniqueID": "hAlgorithm",
 		"type": "header",
 		"title": "Estimator Algorithm / 整图算法",
-		"description": "每个键数各自选择，互不影响。「当前这段」固定用 Sunny。",
+		"description": "Chosen per key mode, independent of each other. The current segment always uses Sunny. / 每个键数各自选择，互不影响。「当前这段」固定用 Sunny。",
 		"options": [],
 		"value": ""
 	},
@@ -35,7 +43,7 @@
 		"uniqueID": "algorithm4K",
 		"type": "options",
 		"title": "4K Algorithm / 4K 算法",
-		"description": "4K 整图段位用哪个算法。Mixed 与 ManiaMapAnalyser 卡片一致。",
+		"description": "Algorithm for the 4K whole-map dan. Mixed matches the ManiaMapAnalyser card. / 4K 整图段位用哪个算法。Mixed 与 ManiaMapAnalyser 卡片一致。",
 		"options": ["Mixed", "Azusa", "Roxy", "Sunny", "Daniel", "Companella"],
 		"value": "Mixed"
 	},
@@ -43,7 +51,7 @@
 		"uniqueID": "algorithm6K",
 		"type": "options",
 		"title": "6K Algorithm / 6K 算法",
-		"description": "6K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
+		"description": "Algorithm for the 6K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 6K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
 		"options": ["Mixed", "Sunny", "Daniel"],
 		"value": "Mixed"
 	},
@@ -51,7 +59,7 @@
 		"uniqueID": "algorithm7K",
 		"type": "options",
 		"title": "7K Algorithm / 7K 算法",
-		"description": "7K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
+		"description": "Algorithm for the 7K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 7K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
 		"options": ["Mixed", "Sunny", "Daniel"],
 		"value": "Mixed"
 	}

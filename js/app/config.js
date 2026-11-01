@@ -62,6 +62,9 @@ export const APP = {
     counterPath: "/ManiaLiveDan.by.MiraiFx/",
     // true = 在徽章右上角额外显示 -- / - / + / ++ 角标（徽章图本身已随分档变化）。
     showTierMark: false,
+    // 界面语言："en"（默认）/ "zh"。也可以在 tosu 面板的计数器设置里改
+    // （settings.json 的 language 会覆盖这里）。
+    language: "en",
     // true = 使用扩展段位表（4K/7K 的高难扩展区间）。
     extendedRange: false,
 
