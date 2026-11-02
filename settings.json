@@ -4,7 +4,10 @@
 		"type": "options",
 		"title": "Language / 语言",
 		"description": "UI language of the overlay. / 悬浮窗界面语言。",
-		"options": ["en", "zh"],
+		"options": [
+			"en",
+			"zh"
+		],
 		"value": "en"
 	},
 	{
@@ -44,23 +47,40 @@
 		"type": "options",
 		"title": "4K Algorithm / 4K 算法",
 		"description": "Algorithm for the 4K whole-map dan. Mixed matches the ManiaMapAnalyser card. / 4K 整图段位用哪个算法。Mixed 与 ManiaMapAnalyser 卡片一致。",
-		"options": ["Mixed", "Azusa", "Roxy", "Sunny", "Daniel", "Companella"],
+		"options": [
+			"Mixed",
+			"Azusa",
+			"Roxy",
+			"Sunny",
+			"Daniel",
+			"Companella"
+		],
 		"value": "Mixed"
 	},
 	{
 		"uniqueID": "algorithm6K",
 		"type": "options",
 		"title": "6K Algorithm / 6K 算法",
-		"description": "Algorithm for the 6K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 6K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
-		"options": ["Mixed", "Sunny", "Daniel"],
+		"description": "Algorithm for the 6K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 6K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。 Prism (beta): 6K/7K difficulty by Prism (mania-tracker's algorithm). Calibration is still preliminary, so its dan may differ from Sunny by 1-2 tiers. / Prism（测试版）：用 mania-tracker 的 Prism 算法算 6K/7K 难度。标定样本尚不充足，段位可能与 Sunny 相差 1~2 档。",
+		"options": [
+			"Mixed",
+			"Sunny",
+			"Prism",
+			"Daniel"
+		],
 		"value": "Mixed"
 	},
 	{
 		"uniqueID": "algorithm7K",
 		"type": "options",
 		"title": "7K Algorithm / 7K 算法",
-		"description": "Algorithm for the 7K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 7K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。",
-		"options": ["Mixed", "Sunny", "Daniel"],
+		"description": "Algorithm for the 7K whole-map dan. Azusa/Roxy only support 4K, so they are not offered here. / 7K 整图段位用哪个算法。Azusa/Roxy 只支持 4K，这里不提供。 Prism (beta): 6K/7K difficulty by Prism (mania-tracker's algorithm). Calibration is still preliminary, so its dan may differ from Sunny by 1-2 tiers. / Prism（测试版）：用 mania-tracker 的 Prism 算法算 6K/7K 难度。标定样本尚不充足，段位可能与 Sunny 相差 1~2 档。",
+		"options": [
+			"Mixed",
+			"Sunny",
+			"Prism",
+			"Daniel"
+		],
 		"value": "Mixed"
 	}
 ]

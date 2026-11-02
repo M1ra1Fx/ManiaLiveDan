@@ -178,10 +178,10 @@ async function loadAnalysis(token, key, beat, mods) {
 
     let analysis;
     try {
-        analysis = analyzeWholeMap(text, mods, {
+        analysis = await analyzeWholeMap(text, mods, {
             firstObject: beat.firstObject,
             lastObject: beat.lastObject,
-        });
+        }, (keys) => algorithmFor(keys));
     } catch (error) {
         console.warn("[ManiaLiveDan] analyze failed", error);
         analysis = { error: "parse-failed" };
@@ -316,11 +316,16 @@ function startPrefill(analysis, token) {
     stopPrefill();
     let index = 0;
     let lastPaint = 0;
+    const repaint = () => {
+        if (token !== state.requestToken || state.analysis !== analysis) return;
+        ui.renderTimeline(analysis);
+    };
     const step = () => {
         if (token !== state.requestToken || state.analysis !== analysis) return;
         const startedAt = performance.now();
         while (index < analysis.count && performance.now() - startedAt < APP.prefillBudgetMs) {
-            computeSectionAt(analysis, index);
+            // Prism 段算完后回调 repaint，把时间轴的颜色更新成 Prism 口径
+            computeSectionAt(analysis, index, repaint);
             index += 1;
         }
         const now = performance.now();
@@ -396,7 +401,11 @@ function tick() {
             const index = sectionIndexFor(analysis, position);
             if (index !== state.sectionIndex) {
                 state.sectionIndex = index;
-                const section = computeSectionAt(analysis, index);
+                // Prism（6K/7K/8K）是异步算的：先给同步结果，算完回调里再刷一次。
+                const section = computeSectionAt(analysis, index, (ready) => {
+                    if (state.analysis !== analysis || state.sectionIndex !== index) return;
+                    ui.showCurrent(ready, analysis, { playing: true });
+                });
                 ui.showCurrent(section, analysis, { playing: true });
             }
         }

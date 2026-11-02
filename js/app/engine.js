@@ -10,6 +10,7 @@ import { formatRc, formatLn, parseRc, parseLn, lnMinStar } from "./dan.js";
 import { computeSegments } from "./segment.js";
 import { applyVibroToSegments, extractNotes } from "./vibro.js";
 import { APP } from "./config.js";
+import { prismDifficulty, usesPrism } from "../lib/estimator/prism/index.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -49,7 +50,7 @@ function noteRange(parser) {
  * 整图分析。
  * @returns {{error:string}|{error:null, ...}} 成功时返回完整分析对象。
  */
-export function analyzeWholeMap(text, mods, tosuRange = {}) {
+export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "Sunny") {
     const parser = safeParse(text);
     if (!parser) return { error: "parse-failed" };
 
@@ -71,7 +72,7 @@ export function analyzeWholeMap(text, mods, tosuRange = {}) {
     }
 
     const keys = Number(rc.columnCount) || 0;
-    const rcStar = Number(rc.star);
+    let rcStar = Number(rc.star);
     const rcTotal = Number(rc.totalNotes) || 0;
     const rcFactor = rcTotal > 0 ? rcTotal / (rcTotal + 60) : 1;
 
@@ -81,6 +82,42 @@ export function analyzeWholeMap(text, mods, tosuRange = {}) {
         lnStar = Number(ln.star);
         lnTotal = Number(ln.totalNotes) || 0;
     }
+
+    // ---- 可选算法：Prism（只对 6K / 7K / 8K 有意义）----
+    // 只有当用户在下拉里选了 Prism 才走这条；否则一律 Sunny（原行为不变）。
+    // Prism 只替换「星数怎么算出来」；星数 → 段位 的查表（DAN_INDEX）一行没动。
+    let estimator = "sunny";
+    let prismValues = null;
+    // algorithm 可以是字符串，也可以是 (keys) => string 的函数（调用方按键数选算法）
+    const algorithmName = typeof algorithm === "function" ? algorithm(keys) : algorithm;
+    const wantsPrism = String(algorithmName || "").toLowerCase() === "prism";
+    if (wantsPrism && usesPrism(keys)) {
+        try {
+            const prism = await prismDifficulty(text, {
+                rate: Number(mods.rate) || 1.0,
+                odFlag: mods.odFlag,
+            });
+            if (prism) {
+                rcStar = prism.rcStar;
+                lnStar = prism.lnStar;
+                estimator = prism.engine;
+                prismValues = prism.values;
+            }
+        } catch (error) {
+            // Prism 不可用（wasm 加载失败等）时退回 Sunny，不让整个界面挂掉
+            console.warn("[ManiaLiveDan] Prism estimator failed, falling back to Sunny", error);
+        }
+    }
+
+    // Prism 换算失败（NaN）时退回 Sunny 原值，避免段位查表拿到 NaN
+    if (estimator !== "sunny" && (!Number.isFinite(rcStar) || !Number.isFinite(lnStar))) {
+        console.warn("[ManiaLiveDan] Prism -> 段位刻度换算失败，退回 Sunny 星数");
+        rcStar = Number(rc.star);
+        lnStar = ln && typeof ln === "object" && Number.isFinite(ln.star) ? Number(ln.star) : 0;
+        estimator = "sunny";
+        prismValues = null;
+    }
+
     const lnFactor = lnTotal > 0 ? lnTotal / (lnTotal + 60) : rcFactor;
     const lnMin = lnMinStar(keys, APP.showLnMinStar);
     const lnVisible = lnStar >= lnMin;
@@ -104,6 +141,10 @@ export function analyzeWholeMap(text, mods, tosuRange = {}) {
         keys,
         rcStar,
         lnStar,
+        // 这张图的难度是谁算的：Sunny 等非 Prism 算法是 "sunny"，Prism 是 "prism-v25"
+        estimator,
+        // Prism 各 skillset 原始分（百分制）；没选 Prism 时为 null
+        prismValues,
         lnRatio: Number(rc.lnRatio) || 0,
         rcTotal,
         lnTotal,
@@ -165,7 +206,15 @@ export function analyzeWholeMap(text, mods, tosuRange = {}) {
  * 计算第 index 段（以 start + index*step 为中心）。
  * 结果缓存在 analysis.sections[index]。
  */
-export function computeSectionAt(analysis, index) {
+/**
+ * 计算第 index 段（以 start + index*step 为中心）。
+ * 结果缓存在 analysis.sections[index]。
+ *
+ * 返回的是**同步值**：命中缓存时直接给结果；未命中时先给一个占位的空结果，
+ * 真正的计算在后台跑，算完写回缓存并回调 onReady（供 UI 刷新）。
+ * 这样 requestAnimationFrame 的 tick() 里调用它不会因为 await 掉帧。
+ */
+export function computeSectionAt(analysis, index, onReady = null) {
     if (!analysis || index < 0 || index >= analysis.count) return null;
     const cached = analysis.sections[index];
     if (cached) return cached;
@@ -230,6 +279,14 @@ export function computeSectionAt(analysis, index) {
                         }
                     }
                 }
+
+                // 6K / 7K / 8K：与整图保持一致，本段也走 Prism。
+                // Prism 是异步的（wasm），而这里（tick 里）不能 await，所以：
+                //   1. 先返回上面 Sunny 的同步结果（或占位）让界面立刻有东西
+                //   2. 后台算 Prism，算完写回缓存并回调 onReady
+                if (analysis.estimator?.startsWith("prism")) {
+                    applyPrismToSectionAsync(analysis, index, result, sliced.text, onReady);
+                }
             } catch (error) {
                 console.warn("[ManiaLiveDan] section estimator failed", error);
             }
@@ -238,6 +295,55 @@ export function computeSectionAt(analysis, index) {
 
     analysis.sections[index] = result;
     return result;
+}
+
+/**
+ * 后台用 Prism 重算某一段，算完写回缓存。
+ * 同一段只跑一次；段落被整体替换（换图）时靠 analysis 引用判断是否还作数。
+ */
+function applyPrismToSectionAsync(analysis, index, result, sectionText, onReady) {
+    if (analysis.prismPending?.has(index)) return;
+    if (!analysis.prismPending) analysis.prismPending = new Set();
+    analysis.prismPending.add(index);
+
+    prismDifficulty(sectionText, {
+        rate: Number(analysis.mods.rate) || 1.0,
+        odFlag: analysis.mods.odFlag,
+    })
+        .then((prism) => {
+            analysis.prismPending.delete(index);
+            if (!prism) return;
+            // 期间若已被重新计算/替换，丢弃
+            if (analysis.sections[index] !== result) return;
+
+            result.rc = prism.rcStar;
+            result.rcLabel = formatRc(result.rc, analysis.keys, APP.extendedRange);
+            result.color = parseRc(result.rcLabel, analysis.keys)?.color || "#8a93a6";
+            result.ln = null;
+            result.lnLabel = "";
+            result.lnColor = undefined;
+            if (prism.lnStar >= analysis.lnMinStar) {
+                result.ln = prism.lnStar;
+                result.lnLabel = formatLn(result.ln, analysis.keys, APP.extendedRange);
+                if (result.lnLabel.startsWith("<")) result.lnLabel = "";
+                if (result.lnLabel) {
+                    result.lnColor = parseLn(result.lnLabel, analysis.keys)?.color || "#7dd3fc";
+                }
+            }
+            result.estimator = prism.engine;
+
+            if (typeof onReady === "function") {
+                try {
+                    onReady(result);
+                } catch {
+                    // UI 回调失败不影响后续段落
+                }
+            }
+        })
+        .catch((error) => {
+            analysis.prismPending.delete(index);
+            console.warn("[ManiaLiveDan] Prism section failed", error);
+        });
 }
 
 /** 从 tosu 取当前谱面的 .osu 原文。 */

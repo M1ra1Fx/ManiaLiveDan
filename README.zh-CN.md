@@ -19,6 +19,8 @@
 
 **0.4.0 起支持 4K / 6K / 7K 三套独立段位体系**，并且算法全部内置，不再依赖 ManiaMapAnalyser。
 
+**0.5.0 新增：6K / 7K 可选 Prism 算法（测试版）**，在设置面板里切换即可，默认仍是 Sunny 口径。
+
 ## 预览
 
 <p align="center">
@@ -41,6 +43,22 @@
 - 每档再分 5 小档：`low / mid-low / mid / mid-high / high`
 - 5K / 8K / 9K / 10K 没有段位表，只显示星数
 - 7K 不做 `Wild` 表；超过 Stellium 封顶在 `Stellium high`
+
+## 6K / 7K 的算法：Sunny 或 Prism（测试版）
+
+设置面板里「6K Algorithm」「7K Algorithm」可以选择：
+
+- **`Mixed` / `Sunny`**（默认）：原来的 Sunny 口径，行为和以前完全一致
+- **`Prism`（测试版）**：用 [mania-tracker 的 Prism 算法](https://mania-tracker.com/news/prism) 计算 6K/7K 难度
+
+Prism 是专门为 6K~8K 编的算法，能正确处理 MinaCalc/Sunny 读不准的地方
+（轮指不再当成高速流、LN 图有 LN 维度、有 Bracket/Technical 分类）。
+
+> ⚠️ **Prism 目前是测试版。** 因为它是百分制（实测 14.8~49.4），而段位表是按 Sunny 星数
+> （3.5~10.5）刻的，需要一层换算。当前标定样本只有 9 张 7K 谱，不够撑起 75 个档位，
+> **段位可能与 Sunny 相差 1~3 档**。要稳定段位请用 `Sunny` / `Mixed`。
+>
+> 细节、验证数据与补样本方法见 [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
 
 > ⚠️ **6K 的 Terra…Finish 五档是推算值**，不是官方阈值。上游 ManiaMapAnalyser 的 6K 表只到
 > `Regular 9 high`（7.965 星），网页的 6K 阶梯还有这五档但星数区间未公开。这里按上游自己的

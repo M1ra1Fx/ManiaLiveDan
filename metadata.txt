@@ -3,6 +3,6 @@ Name: ManiaLiveDan
 Author: MiraiFx
 CompatibleWith: tosu
 Resolution: 201x378
-Version: 0.4.0
+Version: 0.5.0
 authorLinks: 
-Notes: Real-time osu!mania dan overlay for tosu. Independent 4K/6K/7K modules with local estimators (Sunny/Daniel/Azusa/Roxy/Mixed/Companella), segment-level vibro detection, badge art.
+Notes: Real-time osu!mania dan overlay for tosu. Independent 4K/6K/7K modules with local estimators (Sunny/Daniel/Azusa/Roxy/Mixed/Companella), optional Prism (beta) for 6K/7K, segment-level vibro detection, badge art.

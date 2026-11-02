@@ -71,10 +71,11 @@ function postToWorker(payload, timeoutMs) {
 
 const ALL_ALGORITHMS = ["Sunny", "Daniel", "Azusa", "Roxy", "Mixed", "Companella"];
 // Azusa / Roxy 的源码里明确只支持 4K；Companella 依赖 4K 的 MSD 口径
+// Prism 只做 6K / 7K / 8K（上游 PRISM_KEY_COUNTS = [6,7,8]），所以只出现在这两档
 const KEYS_ALGORITHMS = {
     4: ALL_ALGORITHMS,
-    6: ["Sunny", "Daniel", "Mixed"],
-    7: ["Sunny", "Daniel", "Mixed"],
+    6: ["Sunny", "Prism", "Daniel", "Mixed"],
+    7: ["Sunny", "Prism", "Daniel", "Mixed"],
 };
 
 /** 该键数可用的算法列表。 */
