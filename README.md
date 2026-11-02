@@ -120,10 +120,21 @@ not a single line of the algorithm was changed — behind a dependency-free C-AB
 checked against the 12 benchmark charts hard-coded in the announcement: Overall error ≤ 0.03 on
 10 of 12.
 
-> ⚠️ **Prism is a beta feature.** It outputs a 0–50 scale, while the dan tables are graduated in
-> Sunny star ratings (3.5–10.5), so a calibration layer is required. The calibration samples are
-> still insufficient, so **its dan can differ from Sunny by 1–3 tiers**. Use `Sunny` / `Mixed` if
-> you want stable, community-consistent dan. Details are in
+**How the score becomes a dan.** Prism outputs its own 0–50 scale, so it needs converting to the
+star-rating scale the dan tables use. Instead of fitting a curve, we invert Prism's own maths:
+`prism_rating_of_strain()` is a log-domain linear interpolation, so `rating → strain` is an **exact
+inverse** (verified to 1e-15). The resulting strain is already on the star-rating scale — across
+11 benchmark charts the strain / Sunny-star ratio averages **1.00** — so it feeds the existing dan
+tables **with no free parameters at all**.
+
+RC and LN take separate paths: Prism's `Overall` uses the press model and barely sees holds, so
+LN-heavy charts score higher on the LN number (Avril 14th: Overall 18.5, LN 27.1). RC uses the
+exact inverse; LN uses a 5-sample regression because its internal scale is different. LN only
+applies to real LN charts — the official threshold is 37.5% holds on 7K (45% on 6K/8K).
+
+> ⚠️ **Prism is a beta feature.** Its RC path has no fitted parameters, but its LN regression is
+> fitted on only 5 charts, and 6K has just 2 samples. Use `Sunny` / `Mixed` if you want stable,
+> community-consistent dan. Details are in
 > [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md).
 
 ## Vibro segment detection
@@ -341,13 +352,21 @@ tosu 面板的计数器设置里有三个下拉框，每个键数一个：
 
 Prism 评 Chordstream / Bracket / Jack / Technical / Delay，LN 够多的图还会给 LN。
 
-**怎么接的。** 把上游 Rust 源码（MIT，v0.25）**原样编译成 wasm** —— 算法一行未改 —— 外面套一层
-零依赖的 C-ABI 出口。保真度用公告里硬编码的 12 张标尺图验证过：Overall 误差 ≤ 0.03（12 张里
-有 10 张）。
+**怎么接的。** 把上游 Rust 源码(MIT,v0.25)**原样编译成 wasm** —— 算法一行未改 —— 外面套一层
+零依赖的 C-ABI 出口。保真度用公告里硬编码的 12 张标尺图验证过:Overall 误差 ≤ 0.03(12 张里
+有 10 张)。
 
-> ⚠️ **Prism 目前是测试版。** 它输出的是 0~50 的分，而段位表是按 Sunny 星数（3.5~10.5）刻的，
-> 所以需要一层标定换算。当前标定样本仍然不够，**它的段位可能与 Sunny 相差 1~3 档**。要稳定的、
-> 与社区认知一致的段位，请用 `Sunny` / `Mixed`。细节见
+**分数怎么变成段位。** Prism 输出的是它自己的 0~50 刻度,需要换算到段位表用的星数刻度。
+这里不拟合曲线,而是**反解 Prism 自己的数学**:`prism_rating_of_strain()` 是对数域线性插值,
+所以 `分 → strain` 是**精确逆运算**(验证误差 1e-15)。反解出的 strain 本身就在星级刻度上 ——
+11 张标尺图的 strain / Sunny 星数比值**均值恰好 1.00** —— 直接喂现有段位表,**零自由参数**。
+
+RC 和 LN 走两条路:Prism 的 `Overall` 走 press 模型、几乎不感知长条,纯 LN 图的 LN 分会明显更高
+(Avril 14th:Overall 18.5,LN 27.1)。所以 RC 用精确反解,LN 用 5 张样本的回归(LN 内部分布是另一套
+刻度)。LN 只对真正的 LN 图生效 —— 官方门槛是 7K 长条占比 37.5%(6K/8K 是 45%)。
+
+> ⚠️ **Prism 目前是测试版。** RC 那条路没有拟合参数,但 LN 回归只有 5 张样本,6K 更是只有 2 张。
+> 要稳定、与社区认知一致的段位,请用 `Sunny` / `Mixed`。细节见
 > [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
 
 ## Vibro 段判定

@@ -14,12 +14,41 @@
 /** Prism 只负责这三套键数；4K / 5K / 9K+ 仍是 MinaCalc。 */
 export const PRISM_KEY_COUNTS = Object.freeze([6, 7, 8]);
 
-import { prismScoreToStar } from "./calibration.js";
+import { prismScoreToStar, prismLnScoreToStar } from "./calibration.js";
 
-export { prismScoreToStar, PRISM_TO_STAR } from "./calibration.js";
+export {
+    prismScoreToStar,
+    prismLnScoreToStar,
+    prismRatingToStrain,
+    PRISM_SCALES,
+} from "./calibration.js";
 
 /** 上游默认目标成绩（0.965），与站点 `PRISM_BASE_GOAL` 一致。 */
 export const PRISM_BASE_GOAL = 0.965;
+
+/**
+ * Prism 的 LN 判定门槛：长条占比达到这个值才认为「这是一张 LN 图」。
+ *
+ * 官方公告原文：「A chart gets an LN number when at least 37.5% of its notes are holds
+ * on 7K (45% on 6K and 8K)」。
+ *
+ * 低于门槛的图，Prism 的 LN 分没有参考价值（实测 0% 长条的图也会算出非零分），
+ * 此时 lnStar 返回 0，上层按「没有 LN 段位」处理，与 Sunny 的表现一致。
+ */
+export const PRISM_LN_HOLD_RATIO_FLOOR = Object.freeze({
+    6: 0.45,
+    7: 0.375,
+    8: 0.45,
+});
+
+/** 判定门槛时的容差：公告的 37.5% 是四舍五入值，
+ * 实测 Sea of Stars 是 3540/9448 = 0.37479，必须算作 LN 图。 */
+const HOLD_RATIO_EPSILON = 0.002;
+
+/** 该键数的 LN 门槛。 */
+export function prismLnHoldFloor(keyCount) {
+    return PRISM_LN_HOLD_RATIO_FLOOR[Number(keyCount)] ?? 0.375;
+}
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -162,15 +191,46 @@ export async function prismDifficulty(text, { rate = 1.0, odFlag = -1 } = {}) {
     const prismRc = Number(full.values?.Overall) || 0;
     const prismLn = Number(prism.analyzeLn(text, { rate, od })) || 0;
 
+    // LN 只在真正的 LN 图上才有意义。长条占比不到门槛的图（实测 0% 也能算出非零 LN 分），
+    // 直接给 0，让上层当作「没有 LN 段位」，与 Sunny 的表现一致。
+    const holdRatio = countHoldRatio(text);
+    const floor = prismLnHoldFloor(keyCount);
+    const lnUsable = Number.isFinite(holdRatio) && holdRatio >= floor - HOLD_RATIO_EPSILON;
+
     return {
-        // 换算到段位表刻度后给下游用
+        // 换算到段位表刻度后给下游用。
+        // RC 走 Prism 的无参数反解，LN 走回归 —— 原因见 calibration.js。
         rcStar: prismScoreToStar(prismRc, keyCount),
-        lnStar: prismScoreToStar(prismLn, keyCount),
+        lnStar: lnUsable ? prismLnScoreToStar(prismLn, keyCount) : 0,
         // 原始 Prism 分（百分制）留着显示/调试
         prismRc,
         prismLn,
+        holdRatio,
+        lnUsable,
         values: full.values || {},
         keyCount,
         engine: `prism-v${full.version}`,
     };
+}
+
+/**
+ * 直接从 .osu 文本统计长条占比（长条数 / 物件总数）。
+ * 只用于判断「这是不是 LN 图」，不参与难度计算。
+ */
+function countHoldRatio(osuText) {
+    const hitObjectsStart = String(osuText || "").indexOf("[HitObjects]");
+    if (hitObjectsStart < 0) return NaN;
+    let total = 0;
+    let holds = 0;
+    for (const line of osuText.slice(hitObjectsStart).split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("[")) continue;
+        const parts = trimmed.split(",");
+        if (parts.length < 5) continue;
+        total += 1;
+        // 第 4 个字段是 type：128 位代表长条（hold）
+        const type = Number(parts[3]);
+        if (Number.isFinite(type) && (type & 128) !== 0) holds += 1;
+    }
+    return total > 0 ? holds / total : NaN;
 }
