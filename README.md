@@ -132,10 +132,17 @@ LN-heavy charts score higher on the LN number (Avril 14th: Overall 18.5, LN 27.1
 exact inverse; LN uses a 5-sample regression because its internal scale is different. LN only
 applies to real LN charts — the official threshold is 37.5% holds on 7K (45% on 6K/8K).
 
-> ⚠️ **Prism is a beta feature.** Its RC path has no fitted parameters, but its LN regression is
-> fitted on only 5 charts, and 6K has just 2 samples. Use `Sunny` / `Mixed` if you want stable,
+> ⚠️ **Prism is a beta feature and comes with no accuracy guarantee.** Its RC path has no fitted
+> parameters, but its LN regression is fitted on only 5 charts and 6K has just 2 samples.
+> mania-tracker's own Terms of Service state that its generated surfaces — **dan estimates
+> included — "may be delayed, incomplete, unavailable, or incorrect"**, and the dan derived here
+> carries the same caveat. It is **not** claimed to be more accurate than the Sunny-based dan, just
+> a different measurement of difficulty. Use `Sunny` / `Mixed` if you want stable,
 > community-consistent dan. Details are in
 > [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md).
+>
+> This plugin is **not affiliated with** mania-tracker, mania-hub or aleju03 in any way, and makes
+> **no runtime requests** to their servers — all scoring runs locally in the bundled wasm.
 
 ## Vibro segment detection
 
@@ -365,9 +372,15 @@ RC 和 LN 走两条路:Prism 的 `Overall` 走 press 模型、几乎不感知长
 (Avril 14th:Overall 18.5,LN 27.1)。所以 RC 用精确反解,LN 用 5 张样本的回归(LN 内部分布是另一套
 刻度)。LN 只对真正的 LN 图生效 —— 官方门槛是 7K 长条占比 37.5%(6K/8K 是 45%)。
 
-> ⚠️ **Prism 目前是测试版。** RC 那条路没有拟合参数,但 LN 回归只有 5 张样本,6K 更是只有 2 张。
-> 要稳定、与社区认知一致的段位,请用 `Sunny` / `Mixed`。细节见
+> ⚠️ **Prism 目前是测试版,不提供任何准确性保证。** RC 那条路没有拟合参数,但 LN 回归只有 5 张
+> 样本,6K 更是只有 2 张。mania-tracker 自己的服务条款写明,它生成的界面(包括段位估计)
+> 「may be delayed, incomplete, unavailable, or **incorrect**」—— 本插件从 Prism 得出的段位
+> 同样带着这个前提,它**不是**「比 Sunny 更准」,只是另一套衡量难度的口径。要稳定、与社区认知
+> 一致的段位,请用 `Sunny` / `Mixed`。细节见
 > [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
+>
+> 本插件与 mania-tracker / mania-hub / aleju03 **没有任何隶属关系**,运行时也**不会请求**
+> 他们的服务器 —— 所有计算都在本地 wasm 里完成。
 
 ## Vibro 段判定
 
