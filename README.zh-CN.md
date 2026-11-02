@@ -2,6 +2,8 @@
 
 [English](README.md) | **中文**
 
+> 这一页是纯中文版。主页面 [README.md](README.md) 默认显示英语、中文紧跟在下面（同一页双语）。
+
 **实时 osu!mania 段位 overlay（tosu 插件）**
 
 <p align="center">
@@ -44,22 +46,6 @@
 - 5K / 8K / 9K / 10K 没有段位表，只显示星数
 - 7K 不做 `Wild` 表；超过 Stellium 封顶在 `Stellium high`
 
-## 6K / 7K 的算法：Sunny 或 Prism（测试版）
-
-设置面板里「6K Algorithm」「7K Algorithm」可以选择：
-
-- **`Mixed` / `Sunny`**（默认）：原来的 Sunny 口径，行为和以前完全一致
-- **`Prism`（测试版）**：用 [mania-tracker 的 Prism 算法](https://mania-tracker.com/news/prism) 计算 6K/7K 难度
-
-Prism 是专门为 6K~8K 编的算法，能正确处理 MinaCalc/Sunny 读不准的地方
-（轮指不再当成高速流、LN 图有 LN 维度、有 Bracket/Technical 分类）。
-
-> ⚠️ **Prism 目前是测试版。** 因为它是百分制（实测 14.8~49.4），而段位表是按 Sunny 星数
-> （3.5~10.5）刻的，需要一层换算。当前标定样本只有 9 张 7K 谱，不够撑起 75 个档位，
-> **段位可能与 Sunny 相差 1~3 档**。要稳定段位请用 `Sunny` / `Mixed`。
->
-> 细节、验证数据与补样本方法见 [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
-
 > ⚠️ **6K 的 Terra…Finish 五档是推算值**，不是官方阈值。上游 ManiaMapAnalyser 的 6K 表只到
 > `Regular 9 high`（7.965 星），网页的 6K 阶梯还有这五档但星数区间未公开。这里按上游自己的
 > 档距递减规律接上去（Regular 8 宽 0.36、Regular 9 宽 0.33，之后每档 ×0.917 收窄），
@@ -84,6 +70,13 @@ git clone https://github.com/<你的用户名>/ManiaLiveDan.git ManiaLiveDan.by.
 
 之后 `git pull` 就能直接更新正在用的计数器。
 
+## 语言
+
+界面默认 **英语**。要改的话，在 tosu 面板的计数器设置里改 **Language / 语言**（`en` / `zh`），
+改完立刻生效，不用刷新页面。
+
+全新安装的默认值在 `js/app/config.js`（`language: "en"`），面板里的设置会覆盖它。
+
 ## 整图算法（面板里选）
 
 tosu 面板的计数器设置里有三个下拉，每个键数各自独立：
@@ -91,13 +84,36 @@ tosu 面板的计数器设置里有三个下拉，每个键数各自独立：
 | 键数 | 可选算法 | 默认 |
 | --- | --- | --- |
 | 4K | `Mixed / Azusa / Roxy / Sunny / Daniel / Companella` | Mixed |
-| 6K | `Mixed / Sunny / Daniel` | Mixed |
-| 7K | `Mixed / Sunny / Daniel` | Mixed |
+| 6K | `Mixed / Sunny / Prism / Daniel` | Mixed |
+| 7K | `Mixed / Sunny / Prism / Daniel` | Mixed |
 
 - **Azusa / Roxy 源码里只支持 4K**，所以 6K/7K 不提供这两项
 - **Companella 只对 4K 有意义**（它吃的是 4K 的 MSD 口径）
+- **Prism（测试版）**只支持 6K / 7K / 8K —— 见下一节
 - 改了下拉 → **当前这张谱立刻重算**
 - 「当前这段」固定用 Sunny：只有它带局部信息，Mixed 喂 5–20 秒片段会退化成窗口长度的单调函数
+
+## 6K / 7K 的算法：Sunny 或 Prism（测试版）
+
+[Prism](https://mania-tracker.com/news/prism) 是 mania-tracker 为 6K~8K 编写的难度算法，用来
+取代 MinaCalc 在那几个键数上的判断。MinaCalc 是为 4K 写的，套到 7K 上会犯三类错：
+
+| 问题 | 例子（官方公告数据） |
+| --- | --- |
+| 把轮指（jumptrill）当高速流 | `[7K] Jumptrill ~>`：MinaCalc 43.5 → Prism **18.0** |
+| 变速图爆涨 | 同一张 1.3x：56.1 → **30.0** |
+| 完全不认识 LN | `[7K] Challenge`（重 LN 图）：4.9 → **18.5** |
+
+Prism 评 Chordstream / Bracket / Jack / Technical / Delay，LN 够多的图还会给 LN。
+
+**怎么接的。** 把上游 Rust 源码（MIT，v0.25）**原样编译成 wasm** —— 算法一行未改 —— 外面套一层
+零依赖的 C-ABI 出口。保真度用公告里硬编码的 12 张标尺图验证过：Overall 误差 ≤ 0.03（12 张里
+有 10 张）。
+
+> ⚠️ **Prism 目前是测试版。** 它输出的是 0~50 的分，而段位表是按 Sunny 星数（3.5~10.5）刻的，
+> 所以需要一层标定换算。当前标定样本仍然不够，**它的段位可能与 Sunny 相差 1~3 档**。要稳定的、
+> 与社区认知一致的段位，请用 `Sunny` / `Mixed`。细节见
+> [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
 
 ## Vibro 段判定
 

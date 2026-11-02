@@ -73,8 +73,51 @@ copyrighted by their original author, Leo_Black:
 - `js/lib/pipeline/runAnalysisPipeline.js`
 - `js/lib/estimator/companella/` (`dan_model.onnx` + ONNX Runtime Web, roughly 13 MB)
 
+## Bundled third-party algorithm code: Prism (added in 0.5.0, MIT)
+
+`js/lib/estimator/prism/prism.wasm` is compiled from **Prism**, part of
+**mania-hub** by aleju03 — https://github.com/aleju03/mania-hub/tree/HEAD/algorithms/prism
+(MIT License, full text above; algorithm version 0.25).
+
+The Rust source is compiled to WebAssembly **unmodified** — not a single line of the algorithm was
+changed. The only addition is a dependency-free C-ABI shim
+(`js/lib/estimator/prism/wasm-exit/`), which merely exposes the upstream `prism` crate's public
+functions to JavaScript. That shim is also MIT, by MiraiFx.
+
+Prism is used only when the user explicitly selects the `Prism` algorithm for 6K / 7K in the tosu
+panel. The default algorithm is `Mixed` (Sunny scale), for which Prism is not loaded.
+
 ## Image assets
 
 The dan badges under `assets/dan/{4k,6k,7k}/` (numbers, Greek letters, named tiers and their
 low / mid-low / mid-high / high variants) come from **mania-tracker.com** and are used here only to
 display dan; confirm the asset source and licensing yourself before redistributing.
+
+---
+
+## 第三方代码与许可（中文摘要）
+
+> 本节只是上面英文部分的**中文摘要**，供中文使用者快速了解。
+> **以英文原文为准** —— 许可证正文不翻译。
+
+本插件 `ManiaLiveDan`（作者 MiraiFx）以 **MIT** 发布，完整条款见上方英文部分。
+
+**内置的第三方算法代码**（均为 MIT，版权归原作者）：
+
+| 来源 | 用到的文件 | 作者 |
+| --- | --- | --- |
+| **ManiaMapAnalyser** | `js/lib/estimator/`、`js/lib/rework/`、`js/lib/parser/` 等 | Leo_Black |
+| **Star-Rating-Rebirth**（Sunny Rework 原始算法） | 由 ManiaMapAnalyser 内置 | sunnyxxy |
+| **Etterna**（MinaCalc，用于 MSD 与 vibro 判定） | `js/lib/ett/` | Etterna 团队 |
+| **Prism**（0.5.0 起，6K/7K 可选算法） | `js/lib/estimator/prism/prism.wasm` | aleju03 |
+| **ONNX Runtime Web** | `js/lib/estimator/companella/ort/` | Microsoft |
+
+**对上游的改动**：只有 `calculate()` 与 `calculateLN()` 各加了两个可选参数
+（`lengthFactorOverride`、`withMeta`）。**不传这些参数时，输出与上游逐位一致。**
+
+**Prism 特别说明**：本插件把 Prism 的 Rust 源码（`algorithms/prism`，MIT，v0.25）**原样编译成
+wasm，算法一行未改**，只加了一层 C-ABI 出口（源码见 `js/lib/estimator/prism/wasm-exit/`）。
+
+**图片素材**：`assets/dan/{4k,6k,7k}/` 下的段位徽章来自 **mania-tracker.com**，本插件只用于显示
+段位。再分发前请自行确认素材来源与授权。
+

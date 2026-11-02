@@ -1,8 +1,9 @@
 # ManiaLiveDan
 
-**English** | [中文](README.zh-CN.md)
+**English** · [中文 ↓](#中文) · [中文单独页面](README.zh-CN.md)
 
 **Real-time osu!mania dan overlay (tosu plugin)**
+**实时 osu!mania 段位 overlay(tosu 插件)**
 
 <p align="center">
   <a href="https://github.com/M1ra1Fx/ManiaLiveDan/releases/latest/download/ManiaLiveDan.by.MiraiFx.zip">
@@ -12,6 +13,7 @@
     <img alt="All releases" src="https://img.shields.io/badge/All%20Releases-Releases-6e7681?style=for-the-badge">
   </a>
   <img alt="License" src="https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge">
+  <img alt="Bilingual" src="https://img.shields.io/badge/Docs-EN%20%2F%20%E4%B8%AD%E6%96%87-8b5cf6?style=for-the-badge">
 </p>
 
 Segments adapt to the current playback position: stretches where difficulty stays stable are
@@ -20,6 +22,9 @@ The display only switches when you cross a segment boundary.
 
 **Since 0.4.0 there are three independent dan systems for 4K / 6K / 7K**, and every algorithm is
 bundled locally — ManiaMapAnalyser is no longer required.
+
+**0.5.0 adds: optional Prism algorithm for 6K / 7K (beta)** — switch it in the panel, the default
+is still the Sunny scale.
 
 ## Preview
 
@@ -65,7 +70,7 @@ counter name):
 
 ```bash
 cd C:/Tosu/static
-git clone https://github.com/<your-username>/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
+git clone https://github.com/M1ra1Fx/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
 ```
 
 After that, `git pull` updates the counter you are using directly.
@@ -86,14 +91,40 @@ The tosu panel's counter settings have three dropdowns, one per key mode:
 | Keys | Available algorithms | Default |
 | --- | --- | --- |
 | 4K | `Mixed / Azusa / Roxy / Sunny / Daniel / Companella` | Mixed |
-| 6K | `Mixed / Sunny / Daniel` | Mixed |
-| 7K | `Mixed / Sunny / Daniel` | Mixed |
+| 6K | `Mixed / Sunny / Prism / Daniel` | Mixed |
+| 7K | `Mixed / Sunny / Prism / Daniel` | Mixed |
 
 - **Azusa / Roxy only support 4K in their source**, so they are not offered for 6K/7K
 - **Companella is only meaningful for 4K** (it consumes the 4K MSD scale)
+- **Prism (beta)** only supports 6K / 7K / 8K — see the dedicated section below
 - Changing a dropdown → **the current beatmap is re-estimated immediately**
 - "Current segment" always uses Sunny: it is the only estimator with local information; feeding a
   5–20 second slice to Mixed degenerates into a monotonic function of window length
+
+## Prism algorithm for 6K / 7K (beta)
+
+[Prism](https://mania-tracker.com/news/prism) is the difficulty calculator mania-tracker built for
+6K–8K, replacing MinaCalc on those keymodes. MinaCalc was written for 4K, and on 7K it gets three
+things wrong:
+
+| Problem | Example (official announcement data) |
+| --- | --- |
+| Reads jumptrills as fast streams | `[7K] Jumptrill ~>` — MinaCalc 43.5 → Prism **18.0** |
+| Rate-shifted charts explode | Same chart at 1.3x — 56.1 → **30.0** |
+| No idea what LN is | `[7K] Challenge` (LN-heavy) — 4.9 → **18.5** |
+
+Prism rates Chordstream / Bracket / Jack / Technical / Delay, plus LN on charts with enough holds.
+
+**How it is integrated.** The upstream Rust source (MIT, v0.25) is compiled to wasm **unmodified** —
+not a single line of the algorithm was changed — behind a dependency-free C-ABI shim. Fidelity was
+checked against the 12 benchmark charts hard-coded in the announcement: Overall error ≤ 0.03 on
+10 of 12.
+
+> ⚠️ **Prism is a beta feature.** It outputs a 0–50 scale, while the dan tables are graduated in
+> Sunny star ratings (3.5–10.5), so a calibration layer is required. The calibration samples are
+> still insufficient, so **its dan can differ from Sunny by 1–3 tiers**. Use `Sunny` / `Mixed` if
+> you want stable, community-consistent dan. Details are in
+> [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md).
 
 ## Vibro segment detection
 
@@ -174,12 +205,14 @@ In `js/app/config.js`:
   table, badge paths, LN floor and glow parameters; changing 6K never touches 4K
 - Algorithms: `js/lib/estimator/` (Sunny / Daniel / Azusa / Roxy / Mixed / Companella),
   Etterna (MSD) in `js/lib/ett/`, ONNX runtime in `js/lib/estimator/companella/`
+- Prism: `js/lib/estimator/prism/` (compiled wasm + loader + calibration)
 - Length scale: the slice's own length factor is replaced with the whole-map length factor, so
   segment dan and whole-map dan are measured with the same ruler
 
 ## Known limitations
 
 - The 6K `Terra…Finish` tiers are extrapolated values
+- **Prism is beta**: its calibration samples are insufficient, so dan may differ from Sunny by 1–3 tiers
 - The plugin is roughly 15 MB (it bundles the ONNX runtime); the first load takes a few seconds to warm up
 - If an upstream algorithm is ported and later updated, the copy must be synced manually
 - 5K / 8K / 9K / 10K have no dan table
@@ -190,6 +223,8 @@ In `js/app/config.js`:
   https://github.com/LeoBlackMT/osumania_map_analyser
 - Original algorithm: **Sunny Rework** (Star-Rating-Rebirth) by sunnyxxy
   https://github.com/sunnyxxy/Star-Rating-Rebirth
+- **Prism**: by aleju03 (mania-tracker) — MIT
+  https://github.com/aleju03/mania-hub/tree/HEAD/algorithms/prism
 - Dan badge art: **mania-tracker.com**
 - Runtime environment: **tosu** — https://tosu.app
 
@@ -213,3 +248,212 @@ holds the current analysis result and a settings snapshot.
 
 This project is released under [MIT](LICENSE). The bundled third-party algorithms and image assets
 carry their own licenses; see [NOTICE.md](NOTICE.md).
+
+---
+
+<a id="中文"></a>
+
+# 中文
+
+> 这一页默认显示英语，中文紧跟在下面。也可以打开 [纯中文页面](README.zh-CN.md)。
+
+分段会跟着当前播放位置自适应：难度稳定的一段合并成较长的段，难度在变化的地方保持较短、
+更密的段。只有跨过段边界时显示才会切换。
+
+**0.4.0 起支持 4K / 6K / 7K 三套独立段位体系**，并且算法全部内置，不再依赖 ManiaMapAnalyser。
+
+**0.5.0 新增：6K / 7K 可选 Prism 算法（测试版）**，在设置面板里切换即可，默认仍是 Sunny 口径。
+
+## 预览
+
+> 图片见上方英文部分的「Preview」。
+
+## 支持的段位阶梯
+
+| 键数 | RC | LN |
+| --- | --- | --- |
+| 4K | `Reform 1`–`Reform 10` → `α / β / γ / δ / ε / ζ / η / θ / ι / κ` | `LN 1`–`LN 17` |
+| 6K | `Regular 0`–`Regular 9` → `Terra / Celestial / Mystery / Nihility / Finish` | 同 RC |
+| 7K | `Regular 0`–`Regular 10` → `Gamma / Azimuth / Zenith / Stellium` | 同 RC |
+
+- 每档再分 5 小档：`low / mid-low / mid / mid-high / high`
+- 5K / 8K / 9K / 10K 没有段位表，只显示星数
+- 7K 不做 `Wild` 表；超过 Stellium 封顶在 `Stellium high`
+
+> ⚠️ **6K 的 Terra…Finish 五档是推算值**，不是官方阈值。上游 ManiaMapAnalyser 的 6K 表只到
+> `Regular 9 high`（7.965 星），网页的 6K 阶梯还有这五档但星数区间未公开。这里按上游自己的
+> 档距递减规律接上去（Regular 8 宽 0.36、Regular 9 宽 0.33，之后每档 ×0.917 收窄），
+> 合计 7.965 → 9.246 星。代码里标了 `extrapolated`。
+
+## 安装
+
+> 点页面顶部的 **Download / 下载插件** 按钮拿到 zip，解压后按下面步骤放进去即可。
+
+1. 把整个 `ManiaLiveDan.by.MiraiFx` 文件夹放进 tosu 的 `static` 目录
+   （默认 `C:\Tosu\static\`，**不要再套一层**）。
+2. 重启 tosu 或刷新面板 → Counters 列表里出现 **ManiaLiveDan**。
+3. 在游戏内选它做 overlay，或作为 OBS 浏览器源打开：
+   `http://localhost:24050/ManiaLiveDan.by.MiraiFx/`
+
+用 git 安装时，**文件夹名必须保持 `ManiaLiveDan.by.MiraiFx`**（tosu 用它当计数器名）：
+
+```bash
+cd C:/Tosu/static
+git clone https://github.com/M1ra1Fx/ManiaLiveDan.git ManiaLiveDan.by.MiraiFx
+```
+
+之后 `git pull` 就能直接更新你在用的计数器。
+
+## 语言
+
+界面默认 **英语**。要改的话，在 tosu 面板的计数器设置里改 **Language / 语言**（`en` / `zh`），
+改完立刻生效，不用刷新页面。
+
+全新安装的默认值在 `js/app/config.js`（`language: "en"`），面板里的设置会覆盖它。
+
+## 整图算法（面板里选）
+
+tosu 面板的计数器设置里有三个下拉框，每个键数一个：
+
+| 键数 | 可选算法 | 默认 |
+| --- | --- | --- |
+| 4K | `Mixed / Azusa / Roxy / Sunny / Daniel / Companella` | Mixed |
+| 6K | `Mixed / Sunny / Prism / Daniel` | Mixed |
+| 7K | `Mixed / Sunny / Prism / Daniel` | Mixed |
+
+- **Azusa / Roxy 源码里只支持 4K**，所以 6K/7K 不提供
+- **Companella 只对 4K 有意义**（它吃的是 4K 的 MSD 口径）
+- **Prism（测试版）**只支持 6K / 7K / 8K —— 见下节
+- 改下拉框 → **当前谱面会立刻重新估算**
+- 「当前这一段」固定用 Sunny：它是唯一有局部信息的估算器；把 5–20 秒的切片喂给 Mixed
+  会退化成窗口长度的单调函数
+
+## 6K / 7K 的算法：Sunny 或 Prism（测试版）
+
+[Prism](https://mania-tracker.com/news/prism) 是 mania-tracker 为 6K~8K 编写的难度算法，用来
+取代 MinaCalc 在那几个键数上的判断。MinaCalc 是为 4K 写的，套到 7K 上会犯三类错：
+
+| 问题 | 例子（官方公告数据） |
+| --- | --- |
+| 把轮指（jumptrill）当高速流 | `[7K] Jumptrill ~>`：MinaCalc 43.5 → Prism **18.0** |
+| 变速图爆涨 | 同一张 1.3x：56.1 → **30.0** |
+| 完全不认识 LN | `[7K] Challenge`（重 LN 图）：4.9 → **18.5** |
+
+Prism 评 Chordstream / Bracket / Jack / Technical / Delay，LN 够多的图还会给 LN。
+
+**怎么接的。** 把上游 Rust 源码（MIT，v0.25）**原样编译成 wasm** —— 算法一行未改 —— 外面套一层
+零依赖的 C-ABI 出口。保真度用公告里硬编码的 12 张标尺图验证过：Overall 误差 ≤ 0.03（12 张里
+有 10 张）。
+
+> ⚠️ **Prism 目前是测试版。** 它输出的是 0~50 的分，而段位表是按 Sunny 星数（3.5~10.5）刻的，
+> 所以需要一层标定换算。当前标定样本仍然不够，**它的段位可能与 Sunny 相差 1~3 档**。要稳定的、
+> 与社区认知一致的段位，请用 `Sunny` / `Mixed`。细节见
+> [`js/lib/estimator/prism/BENCHMARK.md`](js/lib/estimator/prism/BENCHMARK.md)。
+
+## Vibro 段判定
+
+Vibro 是「单列速度超过人类手指连打极限」的段落。星数算法一定会把它当极限 JackSpeed 算高
+（RPG 7* 那一段会算成 `LN17+ε`），但会 vibro 的玩家打起来很轻松，所以那个数字会误导玩家。
+
+本插件**不改难度算法**，只在分段层独立判定。判成 vibro 的段落显示 `VIBRO`，不给段位数字。
+
+四条判据（同时满足）：
+
+1. 最忙单列 ≥ **10 NPS**（正常手指极限大约 9–10）
+2. 该列相邻音符间隔中位数 ≤ **100 ms**
+3. 该列**单音占比 ≥ 0.4** —— 至少 40% 的音是单独落下的，而不是全包在和弦里
+4. 连续超短间隔持续 ≥ **1.0 秒**
+
+判据 3 是专门用来排除「快速三押」的：三押时每一列都能跑到 20 NPS，光靠判据 1、2 分不出来。
+阈值放宽到 100 ms / 0.4 是为了让「锚点刷」也算 vibro —— 一列以 97 ms 持续输出、其他列叠和弦
+（RPG Overdrive 158 s / 170 s 那段）。三押的单音占比接近 0，仍然会被排除。
+
+判定是**整张图**先找出连打段，再按时间分配到各段（覆盖 ≥ 45% 才算 VIBRO），因为 vibro 段
+通常只有 1–1.5 秒，按段单独找会被边界切断。
+
+## 显示
+
+| 区域 | 含义 |
+| --- | --- |
+| 左上 | 连接/状态、`4K`/`6K`/`7K`、mods、算法标签 |
+| **米段** | 当前段的 RC 段位徽章 |
+| **LN段** | 同一段的 LN 段位徽章，与米段同尺寸并排 |
+| 星数徽章 | 当前段的 Sunny 星数 |
+| `整图` | 整张谱面的段位（按选中的算法） |
+
+- 徽章素材来自 mania-tracker，**分档直接换图**（`-low / -mid-low / -mid-high / -high`）。
+  `-- / - / + / ++` 角标和 `Reform` / `Regular` 前缀默认不再画
+- 面板里有 **Show Tier Mark**：在徽章右上角额外加 `-- / - / + / ++` 角标（默认关）
+- **整张谱没有 LN 段位**（零长条，或低于 LN 表下限）→ LN 块**整块隐藏**，选歌界面也不画杠
+- 有 LN 段位时：**打歌中**当前段没有 LN → 隐藏；**选歌/待机** → 一直显示
+- 竖版窗口（宽高比 ≤ 4:5）自动把 RC / LN 两块竖着叠
+
+## 霓虹灯
+
+- **RC 1–10 档**：白色系，越往上越亮
+- **RC 10 档以上（具名档）**：各用自己调好的配色（`js/app/modes/palettes.js`）。网页徽章本身是
+  单色银，采样取不到区分度，所以是手调的渐变配色
+- **LN 1–10**：白色（0.4.0 起删掉了原来的浅水蓝）
+- **6K / 7K 整体比 4K 亮一档**：难度系数 ×1.5，转速 +50%
+- **呼吸**：4K 从 `rank ≥ 14`（Delta）开始；**6K/7K 从 7dan 起**，暗端钉在该模式自己的 7dan 亮度
+- 弧长：`RC 档位 × 2 : LN 档位`，LN 最多占 1/3
+
+## 可调参数
+
+在 `js/app/config.js`：
+
+- `language`：面板没设置时的界面语言（默认 `"en"`）
+- `defaultAlgorithm`：面板没设置时用的算法（默认 `Mixed`）
+- `estimatorTimeoutMs`：整图分析超时（默认 60 秒）
+- `showLnMinStar`：4K 的 LN 显示门槛（默认 4.84；6K/7K 用各自表下限）
+- `segmentationEnabled` / `segmentCurveWindowMs` / `segmentMinMs`：自适应分段
+- `extendedRange`：4K 用扩展段位表（默认 `false`）
+- `glowBaseSpeed` / `glowRcShareWeight`：光环线速度与弧长权重
+
+## 实现要点
+
+- 谱面来源：tosu `/websocket/v2` + `/files/beatmap/file`
+- 三个模块：`js/app/modes/mode4k.js` / `mode6k.js` / `mode7k.js`，各自带段位表、徽章路径、
+  LN 门槛、光环参数；改 6K 不会影响 4K
+- 算法：`js/lib/estimator/`（Sunny / Daniel / Azusa / Roxy / Mixed / Companella），
+  Etterna（MSD）在 `js/lib/ett/`，ONNX 运行时在 `js/lib/estimator/companella/`
+- Prism：`js/lib/estimator/prism/`（编译好的 wasm + 加载器 + 标定）
+- 长度口径：用整张图的长度因子替换切片自身的长度因子，让「段落段位」与「整图段位」同一把尺子
+
+## 已知限制
+
+- 6K 的 `Terra…Finish` 五档是推算值
+- **Prism 是测试版**：标定样本不足，段位可能与 Sunny 相差 1~3 档
+- 插件约 15 MB（内置了 ONNX 运行时），首次加载要几秒预热
+- 上游算法如果之后更新，需要手动同步
+- 5K / 8K / 9K / 10K 无段位表
+
+## 致谢 / 许可
+
+- 算法与段位区间表：**ManiaMapAnalyser** by Leo_Black — MIT
+  https://github.com/LeoBlackMT/osumania_map_analyser
+- 原始算法：**Sunny Rework**（Star-Rating-Rebirth） by sunnyxxy
+  https://github.com/sunnyxxy/Star-Rating-Rebirth
+- **Prism**：by aleju03（mania-tracker）— MIT
+  https://github.com/aleju03/mania-hub/tree/HEAD/algorithms/prism
+- 段位徽章素材：**mania-tracker.com**
+- 运行环境：**tosu** — https://tosu.app
+
+本插件自身代码以 MIT 发布，详见 `NOTICE.md`。
+
+## 开发
+
+没有构建步骤 —— 全是原生 ES 模块，改完刷新页面即可。
+
+```
+js/app/          应用层（模式分发、分段、UI、vibro 判定）
+js/lib/          移植的算法（estimator / ett / interlude / patterns / pipeline）
+assets/dan/      段位徽章，4k / 6k / 7k 三套
+styles.css       卡片与光环样式
+```
+
+调试时可以直接在浏览器打开计数器页面；控制台里的 `window.__MLD` 保存着当前分析结果和设置快照。
+
+## 许可证
+
+本项目以 [MIT](LICENSE) 发布。内置的第三方算法与图片素材各自遵循其许可证，详见 [NOTICE.md](NOTICE.md)。
