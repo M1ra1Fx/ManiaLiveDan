@@ -26,6 +26,9 @@ bundled locally — ManiaMapAnalyser is no longer required.
 **0.5.0 adds: optional Prism algorithm for 6K / 7K (beta)** — switch it in the panel, the default
 is still the Sunny scale.
 
+**0.5.1**: Prism now converts scores by inverting Prism's own maths instead of a fitted curve, plus
+licensing/NOTICE cleanup and bilingual docs. Prism remains beta.
+
 ## Preview
 
 <p align="center">
@@ -281,6 +284,9 @@ carry their own licenses; see [NOTICE.md](NOTICE.md).
 **0.4.0 起支持 4K / 6K / 7K 三套独立段位体系**，并且算法全部内置，不再依赖 ManiaMapAnalyser。
 
 **0.5.0 新增：6K / 7K 可选 Prism 算法（测试版）**，在设置面板里切换即可，默认仍是 Sunny 口径。
+
+**0.5.1**：Prism 的分数换算改为反解 Prism 自身的数学（不再拟合曲线），并做了许可声明清理与
+文档双语化。Prism 仍是测试版。
 
 ## 预览
 
