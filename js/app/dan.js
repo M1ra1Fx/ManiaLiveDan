@@ -3,6 +3,7 @@
 // 这里只做「文本 ↔ 结构」的翻译，具体每个键数用什么表、什么前缀、什么徽章，
 // 全部由 js/app/modes/ 里的三个模块决定。4K / 6K / 7K 互不干扰。
 import { estDiff2 } from "../lib/estimator/reworkEstimatorUtils.js";
+import { DAN_INDEX } from "../lib/estimator/intervals/index.js";
 import { getMode, hasDanTable as modeHasDanTable } from "./modes/index.js";
 
 const TIER_RE = /^(low|mid\/low|mid|mid\/high|high)$/i;
@@ -36,12 +37,68 @@ export function hasDanTable(keys) {
     return modeHasDanTable(keys);
 }
 
-/** LN 段位显示门槛（星数）；没有 LN 表的键数返回 Infinity。 */
-export function lnMinStar(keys, override) {
-    const mode = getMode(keys);
-    if (!mode) return Number.POSITIVE_INFINITY;
-    if (Number(keys) === 4 && Number.isFinite(override)) return Number(override);
-    return mode.lnMinStar;
+/**
+ * 该键数 LN 表的**真实首档星数** —— 全项目唯一的 LN 门槛。
+ *
+ * 直接从区间表取 table[0][0]，而不是在 mode 模块里手抄一个数字：
+ * 以前 4K 抄的是 4.832、config 的 showLnMinStar 又写 4.84，两处差 0.008，
+ * 于是「整图」用 4.84、「当前段」用表里的 4.832，同一张谱两个门槛。
+ * 现在只有这一个来源：4K=4.832、6K=3.530、7K=4.836，谁也别再抄第二份。
+ *
+ * 语义：星数 **低于** 它 = 够不上该键数最弱的 LN 档 = LN 块不显示任何档位文本
+ * （也不显示 "< 最弱档" 这种兜底 —— 用户明确不要）。
+ * 没有 LN 表的键数（5K/8K/9K/10K）返回 Infinity，调用方据此判「没有 LN 表」。
+ */
+export function lnFloorStar(keys, extended = false) {
+    const table = lnTableOf(keys, extended);
+    return table ? Number(table[0][0]) : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * 该键数的 LN 区间表（extended 有独立表就用独立的）。
+ * 没有 LN 表（5K/8K/9K/10K）返回 null。
+ */
+function lnTableOf(keys, extended = false) {
+    const entry = DAN_INDEX[Number(keys)];
+    if (!entry || !entry.LN) return null;
+    const table = entry.LN[extended ? "extended" : "default"] ?? entry.LN.default;
+    return Array.isArray(table) && table.length ? table : null;
+}
+
+/** 该键数是否有 LN 段位表。 */
+export function hasLnTable(keys, extended = false) {
+    return Boolean(lnTableOf(keys, extended));
+}
+
+/**
+ * LN 显示文本的统一出口（整图 / 当前段 / Prism 覆盖都走这里）。
+ *
+ * 规则只有两条（用户原话：「不要冒小于号，太简单没有显示的意义」）：
+ *   1. 没有长条，或该键数没有 LN 表 → 空串（LN 块不显示）
+ *   2. 星数 **≥ 该键数 LN 表真实首档** → formatLn 的档位文本（"LN 5 mid" ...）
+ *   3. 星数低于首档 → **空串**。不再返回 "< 最弱档" 兜底文本：
+ *      低于最弱一档本来就「没有显示的意义」，留空即可。
+ *
+ * 门槛用的是 lnFloorStar(keys, extended)，和 engine.js 里判「整图够不够门槛」
+ * 是同一个函数 —— 段级和整图级不会再出现 4.84 / 4.832 这种双门槛。
+ *
+ * @param {number} star      LN 星数（0 或 NaN 都可能：没长条、或没算出来）
+ * @param {number} keys      键数
+ * @param {boolean} extended 是否用 extended 表
+ * @param {boolean} hasLn    这张谱/这一段**有没有长条**（来自长条数据，不是星数）
+ * @returns {{ label: string, belowFloor: boolean }}
+ *   label 为空 = 不显示 LN 档位（没长条 / 没有 LN 表 / 够不上首档）；
+ *   belowFloor = true 表示「有长条但低于首档」，调用方可用它弱化样式。
+ */
+export function resolveLnLabel(star, keys, extended = false, hasLn = false) {
+    if (!hasLn || !hasLnTable(keys, extended)) return { label: "", belowFloor: false };
+    const floor = lnFloorStar(keys, extended);
+    const value = Number(star);
+    if (!Number.isFinite(value) || value < floor) return { label: "", belowFloor: true };
+    const raw = formatLn(value, keys, extended);
+    // formatLn 在表边界上仍可能给出 "< x"（浮点/表边界），一律当「够不上」处理。
+    if (!raw || raw.startsWith("<")) return { label: "", belowFloor: true };
+    return { label: raw, belowFloor: false };
 }
 
 /** RC 段位前缀（Reform / Regular / Level）。 */
@@ -62,9 +119,8 @@ export function formatRc(star, keys, extended = false) {
 /** LN 星数 → LN 段位文本（如 "LN 9 low"）；无效/低于表下限返回 ""。 */
 export function formatLn(star, keys, extended = false) {
     if (!Number.isFinite(star) || star <= 0) return "";
-    const mode = getMode(keys);
-    // 10K 有 RC 表但没有 LN 表，estDiff2 会在 keys.LN 上炸，这里直接挡掉
-    if (!mode || !Number.isFinite(mode.lnMinStar)) return "";
+    // 10K 有 RC 表但没有 LN 表，estDiff2 会在 keys.LN 上炸，这里直接挡掉。
+    if (!hasLnTable(keys, extended)) return "";
     const text = String(estDiff2(0, star, keys, extended) || "");
     const parts = text.split("||");
     if (parts.length < 2) return "";
@@ -184,7 +240,15 @@ export function parseRc(text, keys) {
     };
 }
 
-/** 拆分 LN 段位文本。 */
+/**
+ * 拆分 LN 段位文本。
+ *
+ * 兼容两种输入：
+ *   - 正常档位："LN 9 low" / "LN Gamma high"
+ *   - 首档以下兜底："< LN 3 low"（prefix="<"，rank 夹到 4.5）
+ * 兜底的 "<" 前缀由 stripPrefix 吃掉，所以徽章/配色仍然按首档素材走，
+ * 不会因为多一个 "<" 就解析失败。
+ */
 export function parseLn(text, keys) {
     const { prefix, body } = stripPrefix(text);
     if (!body) return null;

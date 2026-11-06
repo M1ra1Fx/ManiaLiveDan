@@ -1,5 +1,5 @@
 // DOM 渲染与时间轴绘制。所有入口都做了空值保护，数据没到也不会炸。
-import { hasDanTable, parseRc, parseLn, tierMark } from "./dan.js";
+import { hasDanTable, hasLnTable, parseRc, parseLn, tierMark } from "./dan.js";
 import { getMode } from "./modes/index.js";
 import { getSetting } from "./settings.js";
 import { t, getLanguage } from "./i18n.js";
@@ -1189,6 +1189,50 @@ export function setMods(text) {
 }
 
 /**
+ * LN 块该不该出现（纯函数，导出给测试断言）。
+ *
+ * 这是这次修复的核心。以前是：
+ *     const showLnBlock = !vibro && Boolean(analysis.hasLnDan) && (playing ? Boolean(ln) : true);
+ * `analysis.hasLnDan` 是**整图级**结论（整图 LN 星数够不够得上 LN 表首档）。
+ * 于是「整图简单、但某一段 LN 很难」的谱，整图 hasLnDan=false，
+ * 打歌打到那段 LN 时 `showLnBlock` 恒为 false —— 段级算得再准也显示不出来。
+ *
+ * 现在的规则：
+ *   · 打歌（playing）：**当前段说了算**。当前段 LN 够得上首档 → 显示档位；
+ *     当前段不够、但整图够门槛 → 保留占位 "—"（原有防抖设计：LN 块不忽隐忽现，
+ *     米段位置也就不会左右跳）。整图也不够门槛 → 整块不出现。
+ *   · 非打歌（选歌/待机，预览整图）：看整图 `hasLnDan`。整图低于门槛就整块不显示。
+ *   · VIBRO 段：连 LN 一起不显示（那段难度数字本身就不可信）。
+ *   · 没有 LN 表的键数（5K/8K/9K/10K）：不显示。
+ *
+ * @param {object}  opts
+ * @param {boolean} opts.playing  是否在打歌
+ * @param {object}  opts.analysis 整图分析结果
+ * @param {object} [opts.section] 当前段（playing 时给）
+ * @param {object} [opts.ln]      当前要显示的 LN 解析结果（parseLn 的返回值，可为 null）
+ * @returns {boolean}
+ */
+export function shouldShowLnBlock({ playing, analysis, section = null, ln = null } = {}) {
+    if (!analysis) return false;
+    // VIBRO 段：米段已经换成 VIBRO，LN 再挂一个段位会自相矛盾。
+    if (section && (section.vibro === true || (section.segment && section.segment.vibro === true))) return false;
+    // 5K/8K/9K/10K 没有 LN 段位表，没东西可显示。
+    if (!hasLnTable(analysis.keys, APP.extendedRange)) return false;
+
+    if (playing && section) {
+        // 当前段够得上 LN 表首档 → 显示（这是「整图简单但这一段 LN 难」能显示出来的原因）。
+        if (ln) return true;
+        // 当前段不够门槛：
+        //   · 整图够门槛（hasLnDan）→ 保留占位 "—"，避免 LN 块忽隐忽现把米段挤得左右跳。
+        //   · 整图也不够门槛 → 整块不出现（用户要的是「不够难就别显示」，不是满屏 "—"）。
+        return Boolean(analysis.hasLnDan);
+    }
+
+    // 预览整图：整图够门槛才显示，低于门槛不显示（也不画 "<"）。
+    return Boolean(analysis.hasLnDan);
+}
+
+/**
  * 整图数字的来源。
  *
  * 整图优先用当前选中算法（面板下拉）算出的结果；还没算完时先显示 Sunny 的估算值。
@@ -1198,7 +1242,10 @@ export function setMods(text) {
 function wholeMapSource(analysis) {
     const whole = analysis.whole;
     if (whole && (whole.rcLabel || whole.lnLabel)) {
-        return { rc: whole.rcLabel, ln: whole.lnLabel, pending: false };
+        // 整图算法没给 LN（MMA 的 estDiff 拿 RC 星数查 LN 表，低于表首档时会返回
+        // "< LN x" 并被 normalizeResult 剥成空串）→ 用本地估出来的 LN 文本兜底。
+        // 本地 lnLabel 现在是「够门槛才有值」，所以这里不会把 "<" 带进来。
+        return { rc: whole.rcLabel, ln: whole.lnLabel || analysis.lnLabel, pending: false };
     }
     if (analysis.wholeStatus === "pending") {
         return { rc: "", ln: "", pending: true };
@@ -1260,12 +1307,38 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
     const strings = t(getLanguage());
     el.caption.textContent = playing ? strings.caption.current : strings.caption.whole;
 
-    // 当前段位用哪个算法：默认 Sunny（只有它带局部信息），
-    // 开了 APP.segmentEstimator="mixed" 才是 Mixed。
+    // 算法标签：分段现在跟随整图算法（选 Prism → 整图和当前段都是 Prism）。
+    // analysis.algorithmName 是面板里选的名字；analysis.estimator 是实际引擎
+    // （Mixed 选了也走 sunny 口径，Prism 是 prism-v25）。显示用户选的名字，别误导。
     if (el.algo) {
-        const label = mixedSeg ? "Mixed" : "Sunny";
+        const chosen = String(analysis.algorithmName || "");
+        const estimator = String(analysis.estimator || "");
+        let label;
+        let tone;
+        if (/prism/i.test(chosen) || /prism/i.test(estimator)) {
+            label = "Prism";
+            tone = "prism";
+        } else if (/mixed/i.test(chosen)) {
+            label = "Mixed";
+            tone = "mma";
+        } else if (/azusa/i.test(chosen)) {
+            label = "Azusa";
+            tone = "mma";
+        } else if (/roxy/i.test(chosen)) {
+            label = "Roxy";
+            tone = "mma";
+        } else if (/daniel/i.test(chosen)) {
+            label = "Daniel";
+            tone = "mma";
+        } else if (/companella/i.test(chosen)) {
+            label = "Companella";
+            tone = "mma";
+        } else {
+            label = "Sunny";
+            tone = "sunny";
+        }
         el.algo.textContent = label;
-        el.algo.dataset.tone = mixedSeg ? "mma" : "sunny";
+        el.algo.dataset.tone = tone;
     }
 
     // ---- 米段 ----
@@ -1314,20 +1387,18 @@ export function showCurrent(section, analysis, { playing, segmentIndex = null, s
     el.star.textContent = Number.isFinite(star) ? star.toFixed(2) : "--";
 
     // ---- LN 段（与米段同尺寸）----
-    // 整图有 LN 的谱面：即使当前段里没有 LN，也保留 LN 块显示 "—"，
-    // 避免 LN 块忽隐忽现导致米段位置左右跳。
-    const mapHasLn = Boolean(analysis.lnLabel)
-        || Number(analysis.lnStar) > 0
-        || Number(analysis.lnRatio) > 0;
-    // 没有 LN 段位（零长条 / 低于表下限）→ 整块不显示，预览也不画杠。
-    // VIBRO 段 → 连 LN 一起不显示：那一段的难度数字本身就不可信，
-    //   米段已经换成 VIBRO 了，LN 再挂一个段位会自相矛盾。
-    // 有 LN 段位时：打歌中只在当前段有 LN 时显示，局外预览一直显示。
-    const showLnBlock = !vibro && Boolean(analysis.hasLnDan) && (playing ? Boolean(ln) : true);
+    // 「显不显示」由 shouldShowLnBlock 决定，规则见它的注释。这里只负责画。
+    //
+    // 关键点：打歌时**只看当前段**，不看整图 hasLnDan —— 整图简单但某一段 LN 难，
+    // 打到那一段时 LN 块必须出现（用户原话：「乐曲里有一段很难的 ln 段，也要显示」）。
+    const showLnBlock = shouldShowLnBlock({ playing, analysis, section, ln });
     if (showLnBlock) {
         el.lnBlock.hidden = false;
         if (ln) {
             const spec = resolveLnSpec(ln, analysis.keys);
+            // 有真实档位时前缀留空：块名 "LN DAN" 已经写了 LN，前缀再写一遍就重复了。
+            // （只有占位 "—" 那条分支才用 "LN" 当前缀。）
+            // 低于 LN 表首档现在直接不显示档位，所以这里也不再有 "<" 前缀。
             el.lnPrefix.textContent = "";
             const nextLn = Number(ln.number);
             const lnSteps = Number.isFinite(nextLn) && Number.isFinite(lastLnRank)

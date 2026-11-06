@@ -14,8 +14,12 @@ export const mode6k = {
     keys: 6,
     label: "6K",
     rcPrefix: "Regular",
-    // 6K 的 LN 表从 LN 0 起，没有显示门槛
-    lnMinStar: 0,
+    // 6K LN 表的**首档星数**（6k-ln.js 首档 = [3.530, 3.718, "LN 0 low"]）。
+    //
+    // ⚠️ 这是唯一门槛：整图和当前段都用它。星数低于它 = 够不上最弱一档 = 不显示 LN 档位
+    // （也不显示 "< 最弱档" 兜底）。运行时实际取值来自 dan.js 的 lnFloorStar()，
+    // 直接读区间表首档；这里保留同值只是给模式模块自己参考，改表时记得同步。
+    lnMinStar: 3.530,
     maxRank: 14,
     namedRanks: { terra: 10, celestial: 11, mystery: 12, nihility: 13, finish: 14 },
     // 6K 整体比 4K 难：难度系数 ×1.5，从 7dan 起呼吸，转速同步 +50%

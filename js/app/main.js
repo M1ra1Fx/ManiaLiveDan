@@ -71,7 +71,8 @@ export function boot() {
 
     requestAnimationFrame(tick);
     startSettingsStream();
-    // 面板里换了算法 → 立刻重算当前谱面的整图段位（规格：换算法立刻生效）
+    // 面板里换了算法 → 立刻重算：整图段位和「当前这段」都由所选算法决定
+    // （分段会按新算法重切、必要时跑 Prism 覆盖表）。
     onSettingsChange(() => {
         // 语言：静态文案先换掉，再重画（重画会重写 caption / sub / status）。
         ui.applyLanguage();
@@ -87,7 +88,9 @@ export function boot() {
         state.algorithm = next;
         state.analysis.whole = null;
         state.analysis.wholeStatus = "";
-        maybeAlignWhole(state.analysis, state.requestToken);
+        state.analysis.segmentOverride = null;
+        // 整图分析本身也要重来：分段是按算法算的
+        reanalyzeCurrent();
     });
     // 预热本地算法 worker：把模块和 ONNX 运行时提前加载好，别等第一次换图才现装。
     // 稍微延后一点，避免和首屏分析抢主线程。
@@ -153,6 +156,26 @@ function activate(key, beat) {
     setStatusOverride(t(getLanguage()).status.reading, "loading");
 
     loadAnalysis(token, key, beat, { ...state.mods });
+}
+
+/**
+ * 丢掉当前谱面的分析结果、绕开缓存重算一遍。
+ * 用于「设置变了但谱面没变」的场景（换算法）——
+ * 这时 activate() 会命中 analysisCache 直接返回旧结果，换了算法也看不到变化。
+ * 注意：缓存键是 identity|mods，不含算法，所以必须显式作废。
+ */
+function reanalyzeCurrent() {
+    const analysis = state.analysis;
+    const beat = state.beat;
+    if (!analysis || !beat || !state.activeKey) return;
+
+    analysisCache.delete(state.activeKey);
+
+    const token = ++state.requestToken;
+    state.sectionIndex = -1;
+    stopPrefill();
+    setStatusOverride(t(getLanguage()).status.reading, "loading");
+    loadAnalysis(token, state.activeKey, beat, { ...state.mods });
 }
 
 async function loadAnalysis(token, key, beat, mods) {

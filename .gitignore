@@ -16,3 +16,7 @@ __shot.html
 # 本地调试产物
 shots/
 cover/
+
+# 本地备份与打包产物（111 MB，不进库）
+backups/
+release/

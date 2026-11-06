@@ -10,7 +10,12 @@ export const mode7k = {
     keys: 7,
     label: "7K",
     rcPrefix: "Regular",
-    lnMinStar: 0,
+    // 7K LN 表的**首档星数**（7k-ln.js 首档 = [4.836, 4.9704, "LN 3 low"]）。
+    //
+    // ⚠️ 这是唯一门槛：整图和当前段都用它。星数低于它 = 够不上最弱一档 = 不显示 LN 档位
+    // （也不显示 "< 最弱档" 兜底）。运行时实际取值来自 dan.js 的 lnFloorStar()，
+    // 直接读区间表首档；这里保留同值只是给模式模块自己参考，改表时记得同步。
+    lnMinStar: 4.836,
     maxRank: 14,
     namedRanks: { gamma: 11, azimuth: 12, zenith: 13, stellium: 14 },
     glow: { dScale: 1.5, breatheFrom: 7, breatheSpan: 7, speedScale: 1.5 },

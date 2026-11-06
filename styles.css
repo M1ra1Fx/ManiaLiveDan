@@ -338,6 +338,12 @@ body:not(.in-game) .stage {
     background: rgba(232, 240, 255, 0.06);
 }
 
+/* Prism 用紫青色区分（与 Mixed 的亮蓝、Sunny 的压暗灰区分开） */
+.tag-algo[data-tone="prism"] {
+    color: #b9a7ff;
+    background: rgba(185, 167, 255, 0.12);
+}
+
 .main {
     flex: 1;
     gap: clamp(4px, 1.8vw, 10px);

@@ -1,12 +1,36 @@
 // 自动切段：按 .osu 的小节线把谱面切成 bars → 合并难度相近的相邻段
 // → 对每个最终段整体重算一次星数/段位。
 // 这样播放时只按时间切段（跨过边界才换），不依赖滑动窗口，既不提前也不滞后。
+//
+// 算法一致性：分段默认用 Sunny 算（同步、快）。如果用户在面板里选了 Prism（6K/7K/8K），
+// engine.js 会先按同一批段边界异步算好每段的 Prism 星数，放进 analysis.segmentOverride；
+// estimateRange 会优先用那张表，让「打歌时看到的段位」和「整图选中的算法」是同一套口径。
 import { calculate } from "../lib/rework/sunnyAlgorithm.js";
 import { calculateLN } from "../lib/rework/sunnyWindowAlgorithm.js";
 import { OsuFileParser } from "../lib/parser/osuFileParser.js";
 import { sliceOsuTextByTimeRange } from "../lib/parser/osuTimeSlice.js";
-import { formatRc, formatLn, parseRc, parseLn } from "./dan.js";
+import { formatRc, parseRc, parseLn, resolveLnLabel } from "./dan.js";
 import { APP } from "./config.js";
+
+/**
+ * 从「分段算法覆盖表」里取出某个时间区间的值。
+ *
+ * analysis.segmentOverride 形状：
+ *   { rc: [{from, to, star}], ln: [{from, to, star}], estimator: "prism" }
+ * 命中条件：段的起点落在 [from, to) 内（边界来自同一次切分，能对上）。
+ * 找不到返回 null，调用方回退 Sunny。
+ */
+function overrideFor(analysis, kind, from) {
+    const table = analysis?.segmentOverride?.[kind];
+    if (!Array.isArray(table) || !table.length) return null;
+    for (const entry of table) {
+        if (from >= entry.from && from < entry.to) return entry;
+    }
+    // 浮点/边界兜底：落在最后一段之后时取最后一条
+    const last = table[table.length - 1];
+    if (last && from >= last.from && from <= last.to + 100) return last;
+    return null;
+}
 
 /** 解析 uninherited timing points（BPM/小节）。 */
 export function parseTimingPoints(text) {
@@ -128,14 +152,24 @@ export function estimateRange(analysis, from, to, { withLn = true } = {}) {
     const clampedFrom = Math.max(from, 0);
     const clampedTo = Math.max(clampedFrom + 100, to);
     const sliced = sliceOsuTextByTimeRange(analysis.text, clampedFrom, clampedTo);
-    const result = { rc: null, ln: null, notes: sliced.objectCount, lnRatio: 0 };
+    const result = { rc: null, ln: null, lnTotal: 0, notes: sliced.objectCount, lnRatio: 0 };
     if (sliced.objectCount < 2) return result;
+
+    // 选了 Prism 时 engine.js 会预先算好每段星数放进覆盖表；命中就用它，
+    // 让分段与整图用同一套算法口径。
+    const rcOverride = overrideFor(analysis, "rc", clampedFrom);
+    const lnOverride = overrideFor(analysis, "ln", clampedFrom);
 
     let parser;
     try {
         parser = new OsuFileParser(sliced.text);
         parser.process();
     } catch {
+        // 切片解析失败时，覆盖表里如果有值仍然可以给出结果
+        if (rcOverride && Number.isFinite(rcOverride.star)) {
+            result.rc = rcOverride.star;
+            result.ln = lnOverride && Number.isFinite(lnOverride.star) ? lnOverride.star : null;
+        }
         return result;
     }
 
@@ -148,16 +182,28 @@ export function estimateRange(analysis, from, to, { withLn = true } = {}) {
             { lengthFactorOverride: analysis.rcFactor, withMeta: true },
             parser,
         );
-        if (rc && typeof rc === "object" && Number.isFinite(rc.star)) {
-            result.rc = Number(rc.star);
+        if (rc && typeof rc === "object") {
+            // lnRatio 始终来自 Sunny：它只表示「这段有没有长条」，用于分段合并判断，
+            // 与难度算法口径无关。
             result.lnRatio = Number(rc.lnRatio) || 0;
+        }
+        if (rcOverride && Number.isFinite(rcOverride.star)) {
+            result.rc = rcOverride.star;
+        } else if (rc && typeof rc === "object" && Number.isFinite(rc.star)) {
+            result.rc = Number(rc.star);
         }
     } catch (error) {
         console.warn("[ManiaLiveDan] segment RC estimate failed", error);
+        if (rcOverride && Number.isFinite(rcOverride.star)) result.rc = rcOverride.star;
         return result;
     }
 
     if (withLn) {
+        if (lnOverride && Number.isFinite(lnOverride.star)) {
+            result.ln = lnOverride.star;
+            result.lnFromOverride = true;
+            return result;
+        }
         try {
             const ln = calculateLN(
                 sliced.text,
@@ -167,8 +213,14 @@ export function estimateRange(analysis, from, to, { withLn = true } = {}) {
                 { lengthFactorOverride: analysis.lnFactor },
                 parser,
             );
-            if (ln && typeof ln === "object" && Number.isFinite(ln.star) && ln.star >= analysis.lnMinStar) {
+            // 门槛判断不在这里做 —— 统一交给 buildSegment 的 resolveLnLabel
+            // （它用 lnFloorStar(keys) 这**唯一**一个门槛，和整图同一套）。
+            // 这里只负责把算出来的原始星数带出去。
+            if (ln && typeof ln === "object" && Number.isFinite(ln.star)) {
                 result.ln = Number(ln.star);
+            }
+            if (ln && typeof ln === "object" && Number.isFinite(ln.totalNotes)) {
+                result.lnTotal = Number(ln.totalNotes);
             }
         } catch {
             // LN 估算失败不影响 RC。
@@ -221,6 +273,50 @@ function weightMean(currentValue, currentWeight, nextValue, nextWeight) {
     const total = currentWeight + nextWeight;
     if (!total) return currentValue;
     return (currentValue * currentWeight + nextValue * nextWeight) / total;
+}
+
+/**
+ * 把一次 estimateRange 的结果整理成「段」对象（两处切段逻辑共用，保证行为一致）。
+ *
+ * LN 的两件事分开，各管各的：
+ *   1. 这一段**有没有长条** → 看长条数据（lnRatio / lnTotal / ln），不看星数、不看整图。
+ *      「整图有没有 LN」是整图级事实，不能拿来推断某一段。
+ *   2. 这一段**够不够门槛** → resolveLnLabel：星数 ≥ lnFloorStar(keys) 才给档位文本，
+ *      够不上就留空（用户明确不要 "< 最弱档" 这种兜底）。
+ *
+ * 门槛只有 lnFloorStar 一个来源，和 engine.js 判整图用的是同一个函数 ——
+ * 段级和整图级不会出现 4.84 / 4.832 两个门槛。
+ */
+function buildSegment(analysis, index, from, to, final) {
+    const keys = analysis.keys;
+    const rc = Number.isFinite(final.rc) ? final.rc : null;
+    const ln = Number.isFinite(final.ln) ? final.ln : 0;
+    const rcLabel = formatRc(rc, keys, APP.extendedRange);
+    const rcParsed = parseRc(rcLabel, keys);
+    // 这一段有没有长条：切片自己的占比 / 长条音符数最直接；ln>0 表示 LN 算法真的跑通了。
+    const sectionHasLn = Number(final.lnRatio) > 0 || Number(final.lnTotal) > 0 || ln > 0;
+    const lnResolved = resolveLnLabel(ln, keys, APP.extendedRange, sectionHasLn);
+    const lnParsed = lnResolved.label ? parseLn(lnResolved.label, keys) : null;
+    return {
+        index,
+        from,
+        to,
+        rc,
+        // ln 保留原始星数（即使够不上门槛），调试/时间轴配色要用；
+        // 「显不显示档位」只看 lnLabel 是否为空。
+        ln,
+        notes: final.notes,
+        lnRatio: final.lnRatio,
+        // 这一段有没有长条（段级事实；显示层用它区分「没 LN」和「有 LN 但不够难」）
+        hasLnNotes: sectionHasLn,
+        rcLabel: rcLabel.startsWith("<") ? "" : rcLabel,
+        // 空 = 不显示 LN 档位（没长条 / 没有 LN 表 / 低于首档）
+        lnLabel: lnResolved.label,
+        // true = 这一段有长条但低于首档（lnLabel 为空）
+        lnBelowFloor: lnResolved.belowFloor,
+        color: rcParsed?.color || "#8a93a6",
+        lnColor: lnParsed?.color || "#7dd3fc",
+    };
 }
 
 /** 合并相邻 bar → 段落，再对每段整体重算一次（没有 graph 时的回退路径）。 */
@@ -306,29 +402,9 @@ function barSegments(analysis) {
     }
 
     // 3) 每段整体重算（比 bar 平均更准），并生成段位文本
-    const keys = analysis.keys;
-    const segments = merged.map((seg, index) => {
-        const final = estimateRange(analysis, seg.from, seg.to);
-        const rc = Number.isFinite(final.rc) ? final.rc : null;
-        const ln = Number.isFinite(final.ln) ? final.ln : 0;
-        const rcLabel = formatRc(rc, keys, APP.extendedRange);
-        const lnLabel = formatLn(ln, keys, APP.extendedRange);
-        const rcParsed = parseRc(rcLabel, keys);
-        const lnParsed = parseLn(lnLabel, keys);
-        return {
-            index,
-            from: seg.from,
-            to: seg.to,
-            rc,
-            ln,
-            notes: final.notes,
-            lnRatio: final.lnRatio,
-            rcLabel: rcLabel.startsWith("<") ? "" : rcLabel,
-            lnLabel: lnLabel.startsWith("<") ? "" : lnLabel,
-            color: rcParsed?.color || "#8a93a6",
-            lnColor: lnParsed?.color || "#7dd3fc",
-        };
-    });
+    const segments = merged.map((seg, index) => (
+        buildSegment(analysis, index, seg.from, seg.to, estimateRange(analysis, seg.from, seg.to))
+    ));
     return markVibro(analysis, segments);
 }
 
@@ -500,29 +576,9 @@ function mergeShortSegments(segments, minMs, delta) {    const merged = segments
 }
 
 function finalizeSegments(analysis, ranges) {
-    const keys = analysis.keys;
-    const segments = ranges.map((seg, index) => {
-        const final = estimateRange(analysis, seg.from, seg.to);
-        const rc = Number.isFinite(final.rc) ? final.rc : null;
-        const ln = Number.isFinite(final.ln) ? final.ln : 0;
-        const rcLabel = formatRc(rc, keys, APP.extendedRange);
-        const lnLabel = formatLn(ln, keys, APP.extendedRange);
-        const rcParsed = parseRc(rcLabel, keys);
-        const lnParsed = parseLn(lnLabel, keys);
-        return {
-            index,
-            from: Math.round(seg.from),
-            to: Math.round(seg.to),
-            rc,
-            ln,
-            notes: final.notes,
-            lnRatio: final.lnRatio,
-            rcLabel: rcLabel.startsWith("<") ? "" : rcLabel,
-            lnLabel: lnLabel.startsWith("<") ? "" : lnLabel,
-            color: rcParsed?.color || "#8a93a6",
-            lnColor: lnParsed?.color || "#7dd3fc",
-        };
-    });
+    const segments = ranges.map((seg, index) => (
+        buildSegment(analysis, index, Math.round(seg.from), Math.round(seg.to), estimateRange(analysis, seg.from, seg.to))
+    ));
     return markVibro(analysis, segments);
 }
 

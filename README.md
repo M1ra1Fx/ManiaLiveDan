@@ -100,9 +100,12 @@ The tosu panel's counter settings have three dropdowns, one per key mode:
 - **Azusa / Roxy only support 4K in their source**, so they are not offered for 6K/7K
 - **Companella is only meaningful for 4K** (it consumes the 4K MSD scale)
 - **Prism (beta)** only supports 6K / 7K / 8K — see the dedicated section below
-- Changing a dropdown → **the current beatmap is re-estimated immediately**
-- "Current segment" always uses Sunny: it is the only estimator with local information; feeding a
-  5–20 second slice to Mixed degenerates into a monotonic function of window length
+- Changing a dropdown → **the current beatmap is re-estimated immediately**, and the choice
+  applies to **both** the whole-map dan and the current-segment dan
+- On 6K / 7K the segment dan is computed with the same engine you picked (Prism segments are
+  scored per-slice). For Mixed / Sunny / Daniel the segment uses the Sunny scale, because those
+  engines normalise their whole-map result onto Sunny stars anyway — and feeding a 5–20 second
+  slice to Mixed degenerates into a monotonic function of window length
 
 ## Prism algorithm for 6K / 7K (beta)
 
@@ -214,7 +217,7 @@ In `js/app/config.js`:
 - `language`: interface language when the panel has no setting (default `"en"`)
 - `defaultAlgorithm`: algorithm used when the panel has no setting (default `Mixed`)
 - `estimatorTimeoutMs`: per whole-map analysis timeout (default 60 s)
-- `showLnMinStar`: 4K's LN display floor (default 4.84; 6K/7K use their own table floors)
+- `showLnMinStar`: **deprecated / unused.** The LN floor is read straight from the interval table (`lnFloorStar` in `dan.js`: 4K 4.832, 6K 3.530, 7K 4.836) and shared by the whole-map and per-segment checks, so the two can never disagree.
 - `segmentationEnabled` / `segmentCurveWindowMs` / `segmentMinMs`: adaptive segmentation
 - `extendedRange`: use 4K's extended dan table (default `false`)
 - `glowBaseSpeed` / `glowRcShareWeight`: glow linear speed and arc-length weights
@@ -348,9 +351,10 @@ tosu 面板的计数器设置里有三个下拉框，每个键数一个：
 - **Azusa / Roxy 源码里只支持 4K**，所以 6K/7K 不提供
 - **Companella 只对 4K 有意义**（它吃的是 4K 的 MSD 口径）
 - **Prism（测试版）**只支持 6K / 7K / 8K —— 见下节
-- 改下拉框 → **当前谱面会立刻重新估算**
-- 「当前这一段」固定用 Sunny：它是唯一有局部信息的估算器；把 5–20 秒的切片喂给 Mixed
-  会退化成窗口长度的单调函数
+- 改下拉框 → **当前谱面会立刻重新估算**，而且选中的算法**同时作用于整图段位和当前段段位**
+- 6K / 7K 上，当前段段位用同一个引擎算（选 Prism 就逐段跑 Prism）。
+  Mixed / Sunny / Daniel 时分段用 Sunny 尺度——这些引擎的整图值本来就归一到 Sunny 星数，
+  而且把 5–20 秒切片喂给 Mixed 会退化成窗口长度的单调函数
 
 ## 6K / 7K 的算法：Sunny 或 Prism（测试版）
 
@@ -443,7 +447,7 @@ Vibro 是「单列速度超过人类手指连打极限」的段落。星数算�
 - `language`：面板没设置时的界面语言（默认 `"en"`）
 - `defaultAlgorithm`：面板没设置时用的算法（默认 `Mixed`）
 - `estimatorTimeoutMs`：整图分析超时（默认 60 秒）
-- `showLnMinStar`：4K 的 LN 显示门槛（默认 4.84；6K/7K 用各自表下限）
+- `showLnMinStar`：**已废弃 / 不再使用**。LN 门槛直接读区间表（`dan.js` 的 `lnFloorStar`：4K 4.832、6K 3.530、7K 4.836），整图与段级共用同一个值。
 - `segmentationEnabled` / `segmentCurveWindowMs` / `segmentMinMs`：自适应分段
 - `extendedRange`：4K 用扩展段位表（默认 `false`）
 - `glowBaseSpeed` / `glowRcShareWeight`：光环线速度与弧长权重

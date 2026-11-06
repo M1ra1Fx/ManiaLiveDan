@@ -6,7 +6,7 @@ import { calculate } from "../lib/rework/sunnyAlgorithm.js";
 import { calculateLN } from "../lib/rework/sunnyWindowAlgorithm.js";
 import { OsuFileParser } from "../lib/parser/osuFileParser.js";
 import { sliceOsuTextByTimeRange } from "../lib/parser/osuTimeSlice.js";
-import { formatRc, formatLn, parseRc, parseLn, lnMinStar } from "./dan.js";
+import { formatRc, parseRc, parseLn, lnFloorStar, resolveLnLabel } from "./dan.js";
 import { computeSegments } from "./segment.js";
 import { applyVibroToSegments, extractNotes } from "./vibro.js";
 import { APP } from "./config.js";
@@ -119,10 +119,28 @@ export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "S
     }
 
     const lnFactor = lnTotal > 0 ? lnTotal / (lnTotal + 60) : rcFactor;
-    const lnMin = lnMinStar(keys, APP.showLnMinStar);
-    const lnVisible = lnStar >= lnMin;
-    const lnLabelRaw = lnVisible ? formatLn(lnStar, keys, APP.extendedRange) : "";
-    const lnLabel = lnLabelRaw.startsWith("<") ? "" : lnLabelRaw;
+    // 该键数 LN 表的真实首档（4K 4.832 / 6K 3.530 / 7K 4.836）。
+    // **整图和段级共用这一个值** —— 不再读 APP.showLnMinStar（那是 4.84，
+    // 和表里的 4.832 差 0.008，会让整图和段级用两个门槛）。
+    const lnMin = lnFloorStar(keys, APP.extendedRange);
+    const lnRatio = Number(rc.lnRatio) || 0;
+
+    // ---- 「有没有长条」看长条数据，不看星数 ----
+    //   · lnRatio > 0  → 解析器直接数出来的长条占比（modIN/modHO 转换之后），最可靠
+    //   · lnTotal > 0  → calculateLN 真的跑通了（没长条时它返回 {NoLN:true}，这里就是 0）
+    //   · lnStar  > 0  → 兜底
+    // 注意：这**只**说明谱里有长条，不说明「够不够难」。
+    const hasLnNotes = lnRatio > 0 || lnTotal > 0 || (Number.isFinite(lnStar) && lnStar > 0);
+
+    // ---- LN 档位文本：够不上首档就留空（不显示 "< 最弱档"）----
+    // 统一走 resolveLnLabel，保证整图 / 当前段 / Prism 覆盖三条路径行为一致。
+    const lnResolved = resolveLnLabel(lnStar, keys, APP.extendedRange, hasLnNotes);
+    const lnLabel = lnResolved.label;
+    const lnBelowFloor = lnResolved.belowFloor;
+    // 整图「够不够门槛」：有长条 **且** 整图 LN 星数 ≥ 该键数 LN 表首档。
+    // 这是整图级结论，只在选歌/待机预览整图时用；打歌时必须看当前段
+    // （见 ui.js 的 shouldShowLnBlock），否则整图简单 + 某段 LN 难就会漏显示。
+    const hasLnDan = hasLnNotes && Boolean(lnLabel);
 
     const fallbackRange = noteRange(parser);
     const start = Number.isFinite(tosuRange.firstObject) ? tosuRange.firstObject : fallbackRange.first;
@@ -143,21 +161,27 @@ export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "S
         lnStar,
         // 这张图的难度是谁算的：Sunny 等非 Prism 算法是 "sunny"，Prism 是 "prism-v25"
         estimator,
+        // 用户在面板里选的算法名（Mixed / Prism / Sunny / ...）。
+        // 与 estimator 的区别：Mixed 的 estimator 是 "sunny" 口径，但界面应显示 Mixed。
+        algorithmName: String(algorithmName || "Sunny"),
         // Prism 各 skillset 原始分（百分制）；没选 Prism 时为 null
         prismValues,
-        lnRatio: Number(rc.lnRatio) || 0,
+        lnRatio,
         rcTotal,
         lnTotal,
         rcFactor,
         lnFactor,
+        // 该键数 LN 表的真实首档星数（整图 / 段级共用；见 dan.js 的 lnFloorStar）
         lnMinStar: lnMin,
         rcLabel: formatRc(rcStar, keys, APP.extendedRange),
         lnLabel,
-        // 这张谱到底有没有 LN 段位：
-        //   - 没有长条 → calculateLN 返回 NaN → lnLabel 为空
-        //   - 低于 LN 表下限 → "< LN x" 被剥掉 → 也是空
-        // 两种情况都说明「总体难度里没有 LN 难度」，显示层据此整块隐藏。
-        hasLnDan: Boolean(lnLabel),
+        // 这张谱有没有长条（纯数据事实，不代表够不够难）
+        hasLnNotes,
+        // 整图级结论：有长条 **且** 整图 LN 星数够得上该键数 LN 表首档。
+        // 只在「选歌 / 待机预览整图」时当闸门；打歌时看当前段（ui.js 的 shouldShowLnBlock）。
+        hasLnDan,
+        // true = 有长条但整图 LN 星数低于首档（lnLabel 因此为空）
+        lnBelowFloor,
         start,
         end,
         stepMs: APP.stepMs,
@@ -175,7 +199,29 @@ export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "S
     if (APP.segmentationEnabled) {
         try {
             const startedAt = performance.now();
-            analysis.segments = computeSegments(analysis);
+            let segments = computeSegments(analysis);
+
+            // 分段算法跟随整图算法：选了 Prism（6K/7K/8K）时，按已切好的段边界
+            // 逐段算一遍 Prism 星数放进覆盖表，再重切一次段让它生效。
+            // 其它算法（Mixed/Sunny/Daniel/Azusa/Roxy）的整图结果都归一到 Sunny 星数尺度，
+            // 分段直接用 Sunny 就是它们的正确口径，不需要覆盖表。
+            if (segments && segments.length && estimator.startsWith("prism")) {
+                try {
+                    const override = await buildPrismSegmentOverride(text, segments, mods, keys);
+                    if (override) {
+                        analysis.segmentOverride = override;
+                        const again = computeSegments(analysis);
+                        if (again && again.length) segments = again;
+                    }
+                } catch (error) {
+                    // Prism 分段失败就保留 Sunny 分段，不影响主流程
+                    console.warn("[ManiaLiveDan] Prism segment override failed, keeping Sunny segments", error);
+                }
+            } else {
+                analysis.segmentOverride = null;
+            }
+
+            analysis.segments = segments;
             if (typeof window !== "undefined" && window.__MLD) {
                 window.__MLD.segmentMs = Math.round(performance.now() - startedAt);
             }
@@ -203,6 +249,58 @@ export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "S
 }
 
 /**
+ * 按已切好的段边界，用 Prism 逐段算一遍星数，产出 estimateRange 用的覆盖表。
+ *
+ * 为什么需要它：分段原本固定用 Sunny 算（同步、快）。用户选了 Prism 之后，
+ * 打歌时看到的段位却还是 Sunny 的 —— 选算法等于没选。
+ * 这里把 Prism 的分段结果预先算出来，segment.js 的 estimateRange 会优先用它。
+ *
+ * 返回形状（见 segment.js 的 overrideFor）：
+ *   { rc: [{from,to,star}], ln: [{from,to,star}], estimator }
+ */
+async function buildPrismSegmentOverride(text, segments, mods, keyCount) {
+    if (!usesPrism(keyCount)) return null;
+    // 段太多时跳过：每段都要过一次 wasm，几百段会让首屏明显变慢。
+    // 超过阈值就退回 Sunny 分段（整图仍是 Prism），至少不会卡住。
+    const MAX_SEGMENTS = 400;
+    if (segments.length > MAX_SEGMENTS) {
+        console.warn(`[ManiaLiveDan] too many segments (${segments.length}) for Prism override, using Sunny segments`);
+        return null;
+    }
+
+    const rate = Number(mods.rate) || 1.0;
+    const odFlag = mods.odFlag;
+    const rc = [];
+    const ln = [];
+
+    for (const seg of segments) {
+        const from = Math.max(0, seg.from);
+        const to = Math.max(from + 100, seg.to);
+        let sliced;
+        try {
+            sliced = sliceOsuTextByTimeRange(text, from, to);
+        } catch {
+            sliced = null;
+        }
+        if (!sliced || sliced.objectCount < 2) {
+            rc.push({ from, to, star: NaN });
+            ln.push({ from, to, star: NaN });
+            continue;
+        }
+        try {
+            const prism = await prismDifficulty(sliced.text, { rate, odFlag });
+            rc.push({ from, to, star: prism ? prism.rcStar : NaN });
+            ln.push({ from, to, star: prism ? prism.lnStar : NaN });
+        } catch {
+            rc.push({ from, to, star: NaN });
+            ln.push({ from, to, star: NaN });
+        }
+    }
+
+    return { rc, ln, estimator: "prism" };
+}
+
+/**
  * 计算第 index 段（以 start + index*step 为中心）。
  * 结果缓存在 analysis.sections[index]。
  */
@@ -213,6 +311,9 @@ export async function analyzeWholeMap(text, mods, tosuRange = {}, algorithm = "S
  * 返回的是**同步值**：命中缓存时直接给结果；未命中时先给一个占位的空结果，
  * 真正的计算在后台跑，算完写回缓存并回调 onReady（供 UI 刷新）。
  * 这样 requestAnimationFrame 的 tick() 里调用它不会因为 await 掉帧。
+ *
+ * 注意：这条路径只在 segmentationEnabled === false 时才会被 tick() 调用；
+ * 默认开启分段时走的是 analysis.segments（由 segment.js 算好）。
  */
 export function computeSectionAt(analysis, index, onReady = null) {
     if (!analysis || index < 0 || index >= analysis.count) return null;
@@ -232,8 +333,14 @@ export function computeSectionAt(analysis, index, onReady = null) {
         notes: 0,
         rc: null,
         ln: null,
+        // 这一段的长条占比（来自切片解析），显示层判断「本段有没有 LN」用
+        lnRatio: 0,
+        // 这一段有没有长条（切片级事实，不是整图结论）
+        hasLnNotes: false,
         rcLabel: "",
         lnLabel: "",
+        // true = 本段有长条但低于 LN 表首档（lnLabel 因此为空）
+        lnBelowFloor: false,
         color: "#8a93a6",
     };
 
@@ -270,13 +377,24 @@ export function computeSectionAt(analysis, index, onReady = null) {
                         { lengthFactorOverride: analysis.lnFactor },
                         parser,
                     );
-                    if (ln && typeof ln === "object" && Number.isFinite(ln.star) && ln.star >= analysis.lnMinStar) {
-                        result.ln = Number(ln.star);
-                        result.lnLabel = formatLn(result.ln, analysis.keys, APP.extendedRange);
-                        if (result.lnLabel.startsWith("<")) result.lnLabel = "";
-                        if (result.lnLabel) {
-                            result.lnColor = parseLn(result.lnLabel, analysis.keys)?.color || "#7dd3fc";
-                        }
+                    // 「这一段有没有 LN」同样看长条数据：切片自己的 lnRatio 最直接。
+                    const sectionLnRatio = Number(rc.lnRatio) || 0;
+                    result.lnRatio = sectionLnRatio;
+                    const sectionLnStar = ln && typeof ln === "object" && Number.isFinite(ln.star) ? Number(ln.star) : 0;
+                    const sectionLnTotal = ln && typeof ln === "object" && Number.isFinite(ln.totalNotes) ? Number(ln.totalNotes) : 0;
+                    const sectionHasLn = sectionLnRatio > 0 || sectionLnTotal > 0 || sectionLnStar > 0;
+                    result.hasLnNotes = sectionHasLn;
+                    // 够不上首档就留空（不再给 "< 最弱档" 兜底），和整图同一套门槛。
+                    const sectionLn = resolveLnLabel(sectionLnStar, analysis.keys, APP.extendedRange, sectionHasLn);
+                    // ln 保留原始星数（即使够不上门槛），和 segment.js 的 buildSegment 保持一致：
+                    // 「显不显示档位」只看 lnLabel 是否为空。
+                    result.ln = sectionHasLn ? sectionLnStar : null;
+                    if (sectionLn.label) {
+                        result.lnLabel = sectionLn.label;
+                        result.lnBelowFloor = false;
+                        result.lnColor = parseLn(result.lnLabel, analysis.keys)?.color || "#7dd3fc";
+                    } else {
+                        result.lnBelowFloor = sectionLn.belowFloor;
                     }
                 }
 
@@ -322,13 +440,23 @@ function applyPrismToSectionAsync(analysis, index, result, sectionText, onReady)
             result.ln = null;
             result.lnLabel = "";
             result.lnColor = undefined;
-            if (prism.lnStar >= analysis.lnMinStar) {
-                result.ln = prism.lnStar;
-                result.lnLabel = formatLn(result.ln, analysis.keys, APP.extendedRange);
-                if (result.lnLabel.startsWith("<")) result.lnLabel = "";
-                if (result.lnLabel) {
-                    result.lnColor = parseLn(result.lnLabel, analysis.keys)?.color || "#7dd3fc";
-                }
+            result.lnBelowFloor = false;
+            // Prism 的长条占比不到门槛时 lnStar 会给 0（见 prism/index.js 的
+            // PRISM_LN_HOLD_RATIO_FLOOR），所以「这一段有没有长条」不能只看 lnStar：
+            // 这一段切片自己的长条占比优先。
+            // ⚠️ 不能用 analysis.hasLnNotes 兜底 —— 那是整图结论，整图有 LN
+            // 不代表这一段有；拿它兜底会让没 LN 的段也被判成「有长条」。
+            const prismLnStar = Number.isFinite(Number(prism.lnStar)) ? Number(prism.lnStar) : 0;
+            const prismHasLn = prismLnStar > 0 || Number(result.lnRatio) > 0;
+            result.hasLnNotes = prismHasLn;
+            const prismLn = resolveLnLabel(prismLnStar, analysis.keys, APP.extendedRange, prismHasLn);
+            if (prismLn.label) {
+                result.ln = prismLnStar;
+                result.lnLabel = prismLn.label;
+                result.lnBelowFloor = false;
+                result.lnColor = parseLn(result.lnLabel, analysis.keys)?.color || "#7dd3fc";
+            } else {
+                result.lnBelowFloor = prismLn.belowFloor;
             }
             result.estimator = prism.engine;
 
